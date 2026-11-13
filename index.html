@@ -176,12 +176,74 @@
   }
 
   /* Canvas & Controls */
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 360px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #1e293b;
+    background: radial-gradient(circle at 50% 35%, #0f1b2d 0%, #05080f 100%);
+  }
   canvas#tunnelCanvas {
     width: 100%;
-    height: 310px;
-    background: #070b12;
-    border: 1px solid #1e293b;
-    border-radius: 8px;
+    height: 100%;
+    display: block;
+    cursor: grab;
+  }
+  canvas#tunnelCanvas:active {
+    cursor: grabbing;
+  }
+  .cam-hud {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    right: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .cam-btns {
+    display: flex;
+    gap: 6px;
+    pointer-events: auto;
+    background: rgba(9, 13, 22, 0.78);
+    backdrop-filter: blur(6px);
+    padding: 4px 6px;
+    border-radius: 7px;
+    border: 1px solid #334155;
+  }
+  .cam-btn {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid transparent;
+    padding: 4px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .cam-btn:hover {
+    color: #fff;
+    background: rgba(56, 189, 248, 0.12);
+  }
+  .cam-btn.active {
+    background: rgba(56, 189, 248, 0.22);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.55);
+    font-weight: 700;
+  }
+  .cam-tip {
+    background: rgba(9, 13, 22, 0.78);
+    backdrop-filter: blur(6px);
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: Consolas, "Microsoft YaHei", sans-serif;
   }
   .ctrl-bar {
     display: flex;
@@ -377,8 +439,8 @@
   <div class="card">
     <div class="card-header">
       <div class="card-title">
-        上海8号线 列车4节点 (N1~N4) × 轨旁锚点群 (Ak) 实时测距与航位推算视图
-        <span class="tag">DS-TWR + 15维ESKF紧耦合</span>
+        上海8号线 3D 盾构隧道 · 列车4节点 (N1~N4) × 轨旁锚点群 (Ak) 实时空间测距与航位推算
+        <span class="tag">3D 实时透视引擎 · DS-TWR + 15维ESKF</span>
       </div>
       <div class="ctrl-bar">
         <button class="mode-btn active" onclick="setScenario('cruise', this)">隧道正常巡航 (72km/h)</button>
@@ -388,7 +450,18 @@
       </div>
     </div>
 
-    <canvas id="tunnelCanvas" width="900" height="310"></canvas>
+    <div class="canvas-wrap">
+      <div class="cam-hud">
+        <div class="cam-btns">
+          <button class="cam-btn active" onclick="setCamView('iso', this)">🎥 3D斜视追踪</button>
+          <button class="cam-btn" onclick="setCamView('cab', this)">🚄 车头第一视角</button>
+          <button class="cam-btn" onclick="setCamView('top', this)">🛰️ 3D俯视透视</button>
+          <button class="cam-btn" onclick="setCamView('orbit', this)">🔄 360°自动环绕</button>
+        </div>
+        <div class="cam-tip" id="cam-hud-tip">🖱️ 左键拖拽任意旋转 3D 视角 | 滚轮缩放 | Ch9 (7987.2MHz)</div>
+      </div>
+      <canvas id="tunnelCanvas" width="960" height="360"></canvas>
+    </div>
 
     <div class="telemetry-grid">
       <div class="metric-box">
@@ -1064,13 +1137,62 @@ function updateJammerSim() {
   }
 }
 
-/* ==================== TUNNEL CANVAS ANIMATION ==================== */
+/* ==================== 3D SHIELD TUNNEL & MULTI-CAR TRAIN ENGINE ==================== */
 const canvas = document.getElementById('tunnelCanvas');
 const ctx = canvas.getContext('2d');
 let scenario = 'cruise';
-let trainX = 180;
+let trainX = -80; // Head car front X in 3D world (-320 .. +380)
+let oppTrainX = 280; // Opposing train X in NLOS scenario
 let mileage = 14285.42;
 let tick = 0;
+
+// 3D Camera Orbit State
+let camView = 'iso';
+let camYaw = -0.62;
+let camPitch = 0.36;
+let camDist = 470;
+let isDragging = false;
+let lastMouseX = 0;
+let lastMouseY = 0;
+
+function setCamView(mode, btn) {
+  camView = mode;
+  if (btn) {
+    btn.parentElement.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  if (mode === 'iso') {
+    camYaw = -0.62; camPitch = 0.36; camDist = 470;
+  } else if (mode === 'top') {
+    camYaw = -0.08; camPitch = 1.22; camDist = 540;
+  } else if (mode === 'orbit') {
+    camPitch = 0.34; camDist = 480;
+  }
+}
+
+canvas.addEventListener('mousedown', e => {
+  isDragging = true;
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  if (camView === 'cab' || camView === 'orbit') {
+    camView = 'iso';
+    document.querySelectorAll('.cam-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  }
+});
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastMouseX;
+  const dy = e.clientY - lastMouseY;
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  camYaw += dx * 0.007;
+  camPitch = Math.max(0.08, Math.min(1.42, camPitch + dy * 0.006));
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camDist = Math.max(220, Math.min(820, camDist + e.deltaY * 0.35));
+}, { passive: false });
 
 function setScenario(sc, btn) {
   scenario = sc;
@@ -1110,144 +1232,485 @@ function setScenario(sc, btn) {
     document.getElementById('val-speed').textContent = '68.4 km/h';
     document.getElementById('val-err').textContent = '±7.5 cm (纯惯导维持)';
     document.getElementById('val-rigid-status').textContent = '检测到前向2.1m多径跳变，已刚体抑制!';
+    oppTrainX = trainX + 260;
   }
 }
 
-const anchors = [
-  { id: 'A_118', x: 90,  y: 42, side: 'top' },
-  { id: 'A_119', x: 310, y: 268, side: 'bot' },
-  { id: 'A_120', x: 530, y: 42, side: 'top' },
-  { id: 'A_121', x: 760, y: 268, side: 'bot' }
+// Track lateral Z curve function for turnout mode
+function getTrackZ(x) {
+  if (scenario !== 'turnout') return 0;
+  if (x <= -60) return 0;
+  if (x >= 240) return -82;
+  const t = (x + 60) / 300;
+  return -82 * (t * t * (3 - 2 * t)); // Smoothstep S-curve transition
+}
+
+// 4 Wayside Anchors in 3D Tunnel Coordinates (x: along track, y: height, z: lateral wall)
+const anchors3D = [
+  { id: 'A_118', x: -340, y: 62, z: -138, side: 'left',  km: 'K14+180' },
+  { id: 'A_119', x: -110, y: 62, z:  85,  side: 'right', km: 'K14+240' },
+  { id: 'A_120', x:  130, y: 62, z: -138, side: 'left',  km: 'K14+300' },
+  { id: 'A_121', x:  360, y: 62, z:  85,  side: 'right', km: 'K14+360' }
 ];
+
+// Camera Basis & Projection
+let camEye = { x: 0, y: 120, z: 200 };
+let camF = { x: 0, y: 0, z: -1 };
+let camR = { x: 1, y: 0, z: 0 };
+let camU = { x: 0, y: 1, z: 0 };
+const FOV = 640;
+
+function updateCamera(trainCenterX, headX) {
+  if (camView === 'orbit') {
+    camYaw += 0.0055;
+  }
+  let target;
+  if (camView === 'cab') {
+    const hz = getTrackZ(headX);
+    const lookX = headX + 220;
+    const lookZ = getTrackZ(lookX);
+    camEye = { x: headX - 10, y: 40, z: hz };
+    target = { x: lookX, y: 24, z: lookZ };
+  } else {
+    const followX = trainCenterX * 0.45;
+    target = { x: followX, y: 22, z: -22 };
+    camEye = {
+      x: target.x + camDist * Math.cos(camPitch) * Math.sin(camYaw),
+      y: target.y + camDist * Math.sin(camPitch),
+      z: target.z + camDist * Math.cos(camPitch) * Math.cos(camYaw)
+    };
+  }
+  const fx = target.x - camEye.x;
+  const fy = target.y - camEye.y;
+  const fz = target.z - camEye.z;
+  const flen = Math.hypot(fx, fy, fz) || 1;
+  camF = { x: fx / flen, y: fy / flen, z: fz / flen };
+
+  // Right = normalize(cross(F, [0, 1, 0]))
+  let rx = -camF.z;
+  let ry = 0;
+  let rz = camF.x;
+  const rlen = Math.hypot(rx, ry, rz) || 1;
+  camR = { x: rx / rlen, y: ry / rlen, z: rz / rlen };
+
+  // Up = cross(R, F)
+  camU = {
+    x: camR.y * camF.z - camR.z * camF.y,
+    y: camR.z * camF.x - camR.x * camF.z,
+    z: camR.x * camF.y - camR.y * camF.x
+  };
+}
+
+function toCamSpace(wx, wy, wz) {
+  const dx = wx - camEye.x;
+  const dy = wy - camEye.y;
+  const dz = wz - camEye.z;
+  return {
+    x: dx * camR.x + dy * camR.y + dz * camR.z,
+    y: dx * camU.x + dy * camU.y + dz * camU.z,
+    z: dx * camF.x + dy * camF.y + dz * camF.z
+  };
+}
+
+function projectCamPoint(cp) {
+  const scale = FOV / cp.z;
+  return {
+    sx: canvas.width * 0.5 + cp.x * scale,
+    sy: canvas.height * 0.54 - cp.y * scale,
+    depth: cp.z,
+    scale: scale
+  };
+}
+
+function projectWorld(wx, wy, wz) {
+  const cp = toCamSpace(wx, wy, wz);
+  if (cp.z <= 14) return null;
+  return projectCamPoint(cp);
+}
+
+function draw3DSegment(p1, p2, strokeStyle, lineWidth = 1.5, dash = null) {
+  let c1 = toCamSpace(p1.x, p1.y, p1.z);
+  let c2 = toCamSpace(p2.x, p2.y, p2.z);
+  const NEAR = 15;
+  if (c1.z < NEAR && c2.z < NEAR) return;
+  if (c1.z < NEAR) {
+    const t = (NEAR - c1.z) / (c2.z - c1.z);
+    c1 = { x: c1.x + (c2.x - c1.x) * t, y: c1.y + (c2.y - c1.y) * t, z: NEAR };
+  } else if (c2.z < NEAR) {
+    const t = (NEAR - c2.z) / (c1.z - c2.z);
+    c2 = { x: c2.x + (c1.x - c2.x) * t, y: c2.y + (c1.y - c2.y) * t, z: NEAR };
+  }
+  const s1 = projectCamPoint(c1);
+  const s2 = projectCamPoint(c2);
+  ctx.save();
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(s1.sx, s1.sy);
+  ctx.lineTo(s2.sx, s2.sy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function collectBoxFaces(facesList, cx, cy, cz, lx, ly, lz, yawAngle, palette) {
+  const cosA = Math.cos(yawAngle);
+  const sinA = Math.sin(yawAngle);
+  const hx = lx / 2, hy = ly / 2, hz = lz / 2;
+  const localCorners = [
+    [-hx, -hy, -hz], [ hx, -hy, -hz], [ hx,  hy, -hz], [-hx,  hy, -hz],
+    [-hx, -hy,  hz], [ hx, -hy,  hz], [ hx,  hy,  hz], [-hx,  hy,  hz]
+  ];
+  const worldPts = localCorners.map(([x, y, z]) => ({
+    x: cx + x * cosA - z * sinA,
+    y: cy + y,
+    z: cz + x * sinA + z * cosA
+  }));
+  const projPts = worldPts.map(p => projectWorld(p.x, p.y, p.z));
+  if (projPts.some(p => p === null)) return;
+
+  const boxFaces = [
+    { idx: [0, 1, 2, 3], fill: palette.sideL, stroke: palette.stroke, tag: 'sideL' },
+    { idx: [4, 5, 6, 7], fill: palette.sideR, stroke: palette.stroke, tag: 'sideR' },
+    { idx: [3, 2, 6, 7], fill: palette.top,   stroke: palette.stroke, tag: 'top' },
+    { idx: [1, 5, 6, 2], fill: palette.front, stroke: palette.stroke, tag: 'front' },
+    { idx: [0, 4, 7, 3], fill: palette.back,  stroke: palette.stroke, tag: 'back' }
+  ];
+
+  boxFaces.forEach(f => {
+    const pts2d = f.idx.map(i => projPts[i]);
+    const avgDepth = f.idx.reduce((sum, i) => sum + projPts[i].depth, 0) / 4;
+    facesList.push({
+      pts2d,
+      avgDepth,
+      fill: f.fill,
+      stroke: f.stroke,
+      tag: f.tag,
+      worldCorners: f.idx.map(i => worldPts[i])
+    });
+  });
+}
 
 function drawLoop() {
   tick++;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Tunnel walls
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, 28); ctx.lineTo(900, 28);
-  ctx.moveTo(0, 282); ctx.lineTo(900, 282);
-  ctx.stroke();
+  // Subtle background grid glow
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  bgGrad.addColorStop(0, '#07101e');
+  bgGrad.addColorStop(0.55, '#0b1628');
+  bgGrad.addColorStop(1, '#050911');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Main Track 1 rails
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, 130); ctx.lineTo(900, 130);
-  ctx.moveTo(0, 178); ctx.lineTo(900, 178);
-  ctx.stroke();
-
-  // Sleepers
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 2;
-  for (let x = (-(tick * (scenario === 'station' ? 0 : 2)) % 24); x < 900; x += 24) {
-    ctx.beginPath();
-    ctx.moveTo(x, 124); ctx.lineTo(x, 184);
-    ctx.stroke();
-  }
-
-  // Turnout Track 2 branch if turnout mode
-  if (scenario === 'turnout') {
-    ctx.strokeStyle = '#f59e0b';
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(260, 130); ctx.quadraticCurveTo(480, 130, 720, 75);
-    ctx.moveTo(260, 178); ctx.quadraticCurveTo(480, 178, 720, 120);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Update motion
+  // Advance train position
   if (scenario !== 'station') {
-    trainX += (scenario === 'turnout' ? 0.9 : 1.6);
-    mileage += (scenario === 'turnout' ? 0.03 : 0.06);
-    if (trainX > 520) trainX = 110;
+    const step = (scenario === 'turnout') ? 1.15 : 2.1;
+    trainX += step;
+    mileage += (scenario === 'turnout') ? 0.032 : 0.062;
+    if (trainX > 360) trainX = -150;
     document.getElementById('val-mileage').textContent = mileage.toFixed(2) + ' m';
   }
-
-  const trainW = 250;
-  const trainH = 40;
-  const trainY = (scenario === 'turnout' && trainX > 260)
-    ? 134 - (trainX - 260) * 0.14
-    : 134;
-
-  // Draw Train Body (6-car metro train)
-  ctx.fillStyle = '#0f172a';
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(trainX, trainY, trainW, trainH, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = 'bold 12px Microsoft YaHei';
-  ctx.fillText('上海8号线 0842号列车 (车长刚体约束 L=140.0m)', trainX + 18, trainY + 24);
-
-  // 4 On-board UWB+IMU Nodes (N1, N2 at Tail; N3, N4 at Head)
-  const nodes = [
-    { id: 'N1(尾左)', x: trainX + 12, y: trainY + 5 },
-    { id: 'N2(尾右)', x: trainX + 12, y: trainY + trainH - 5 },
-    { id: 'N3(头左)', x: trainX + trainW - 12, y: trainY + 5 },
-    { id: 'N4(头右)', x: trainX + trainW - 12, y: trainY + trainH - 5 }
-  ];
-
-  // Draw NLOS obstacle in 'nlos' mode
   if (scenario === 'nlos') {
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
-    ctx.strokeStyle = '#ef4444';
-    ctx.fillRect(trainX + trainW - 30, 58, 120, 52);
-    ctx.strokeRect(trainX + trainW - 30, 58, 120, 52);
-    ctx.fillStyle = '#fca5a5';
-    ctx.font = '11px Microsoft YaHei';
-    ctx.fillText('对向列车交会遮挡 (NLOS多径区)', trainX + trainW - 22, 88);
+    oppTrainX -= 2.4;
+    if (oppTrainX < -360) oppTrainX = 360;
   }
 
-  // Draw Ranging Rays between Wayside Anchors and Train 4 Nodes
-  anchors.forEach(a => {
-    // Draw Anchor Box
-    ctx.fillStyle = '#06b6d4';
+  // 3-Car Articulated Metro Train (Total length = 240 world units representing 140m)
+  const carLen = 74;
+  const carGap = 7;
+  const headCenterX = trainX - carLen * 0.5;
+  const midCenterX  = headCenterX - (carLen + carGap);
+  const tailCenterX = midCenterX  - (carLen + carGap);
+  const trainCenterX = midCenterX;
+
+  updateCamera(trainCenterX, trainX);
+
+  // 1. Draw 3D Shield Tunnel Arch Rings (地下盾构管片环)
+  const tunnelCenterZ = -26;
+  const tunnelRadiusZ = 135;
+  const tunnelRadiusY = 128;
+  for (let x = -480; x <= 520; x += 60) {
+    let prevPt = null;
+    for (let a = -0.12 * Math.PI; a <= 1.12 * Math.PI; a += 0.124 * Math.PI) {
+      const wy = Math.sin(a) * tunnelRadiusY;
+      const wz = tunnelCenterZ + Math.cos(a) * tunnelRadiusZ;
+      const curPt = { x, y: wy, z: wz };
+      if (prevPt) {
+        draw3DSegment(prevPt, curPt, 'rgba(30, 58, 95, 0.42)', 1.3);
+      }
+      prevPt = curPt;
+    }
+  }
+  // Longitudinal tunnel stringers & DC1500V Overhead Catenary Wire
+  [-0.95, -0.55, 0, 0.55, 0.95].forEach(cosVal => {
+    const a = Math.acos(cosVal);
+    const wy = Math.sin(a) * tunnelRadiusY;
+    const wz = tunnelCenterZ + cosVal * tunnelRadiusZ;
+    draw3DSegment({ x: -500, y: wy, z: wz }, { x: 540, y: wy, z: wz }, 'rgba(30, 41, 59, 0.45)', 1);
+  });
+  // Overhead Catenary (接触网)
+  draw3DSegment({ x: -500, y: 74, z: 0 }, { x: 540, y: 74, z: 0 }, 'rgba(245, 158, 11, 0.35)', 1.2, [8, 6]);
+
+  // 2. Draw 3D Track 1 (Main Line) & Track 2 (Turnout / Adjacent Line)
+  for (let x = -480; x < 500; x += 28) {
+    // Track 1 sleepers
+    draw3DSegment({ x, y: 0, z: -22 }, { x, y: 0, z: 22 }, 'rgba(51, 65, 85, 0.75)', 2);
+    // Adjacent Track 2 sleepers
+    draw3DSegment({ x, y: 0, z: -104 }, { x, y: 0, z: -60 }, 'rgba(30, 41, 59, 0.6)', 1.5);
+  }
+  // Main Track 1 steel rails
+  draw3DSegment({ x: -500, y: 1, z: -14 }, { x: 520, y: 1, z: -14 }, '#475569', 2.4);
+  draw3DSegment({ x: -500, y: 1, z:  14 }, { x: 520, y: 1, z:  14 }, '#475569', 2.4);
+  // Adjacent Track 2 steel rails
+  draw3DSegment({ x: -500, y: 1, z: -96 }, { x: 520, y: 1, z: -96 }, '#334155', 1.8);
+  draw3DSegment({ x: -500, y: 1, z: -68 }, { x: 520, y: 1, z: -68 }, '#334155', 1.8);
+
+  // Turnout S-curve switch rails
+  for (let x = -60; x < 240; x += 25) {
+    const z1 = getTrackZ(x);
+    const z2 = (scenario === 'turnout') ? getTrackZ(x + 25) : (-82 * (((x + 85) / 300) ** 2 * (3 - 2 * ((x + 85) / 300))));
+    const curZ = (scenario === 'turnout') ? z1 : (-82 * (((x + 60) / 300) ** 2 * (3 - 2 * ((x + 60) / 300))));
+    const col = (scenario === 'turnout') ? '#f59e0b' : 'rgba(100, 116, 139, 0.35)';
+    draw3DSegment({ x, y: 1.5, z: curZ - 14 }, { x: x + 25, y: 1.5, z: z2 - 14 }, col, scenario === 'turnout' ? 2.5 : 1.2);
+    draw3DSegment({ x, y: 1.5, z: curZ + 14 }, { x: x + 25, y: 1.5, z: z2 + 14 }, col, scenario === 'turnout' ? 2.5 : 1.2);
+  }
+
+  // Station platform 3D block when in station mode
+  if (scenario === 'station') {
+    draw3DSegment({ x: -240, y: 16, z: 32 }, { x: 180, y: 16, z: 32 }, '#10b981', 2.5);
+    const stLbl = projectWorld(-30, 26, 48);
+    if (stLbl) {
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 11px "Microsoft YaHei"';
+      ctx.fillText('🏛️ 8号线站台屏蔽门精准对位 (<±2cm) · ZUPT零速修正激活', stLbl.sx - 120, stLbl.sy);
+    }
+  }
+
+  // 3. Build 3D Multi-Car Train Faces (Painter's Algorithm depth sort)
+  const facesList = [];
+  const carCenters = [
+    { name: 'Head', cx: headCenterX },
+    { name: 'Mid',  cx: midCenterX },
+    { name: 'Tail', cx: tailCenterX }
+  ];
+
+  const trainPalette = {
+    sideL: 'rgba(14, 116, 180, 0.88)',
+    sideR: 'rgba(12, 94, 148, 0.90)',
+    top:   'rgba(226, 232, 240, 0.92)',
+    front: 'rgba(56, 189, 248, 0.95)',
+    back:  'rgba(15, 23, 42, 0.90)',
+    stroke: '#38bdf8'
+  };
+
+  carCenters.forEach(car => {
+    const cz = getTrackZ(car.cx);
+    const czNext = getTrackZ(car.cx + 12);
+    const yaw = Math.atan2(czNext - cz, 12);
+    car.cz = cz;
+    car.yaw = yaw;
+    collectBoxFaces(facesList, car.cx, 19, cz, carLen, 30, 34, yaw, trainPalette);
+  });
+
+  // Add Opposing 3D Train in NLOS mode
+  if (scenario === 'nlos') {
+    const nlosPalette = {
+      sideL: 'rgba(185, 28, 28, 0.52)',
+      sideR: 'rgba(153, 27, 27, 0.56)',
+      top:   'rgba(239, 68, 68, 0.48)',
+      front: 'rgba(248, 113, 113, 0.65)',
+      back:  'rgba(127, 29, 29, 0.5)',
+      stroke: '#ef4444'
+    };
+    collectBoxFaces(facesList, oppTrainX, 20, -82, 165, 32, 34, 0, nlosPalette);
+  }
+
+  // Sort 3D faces back-to-front by average camera depth
+  facesList.sort((a, b) => b.avgDepth - a.avgDepth);
+
+  // Render sorted 3D polygons
+  facesList.forEach(f => {
     ctx.beginPath();
-    ctx.arc(a.x, a.y, 7, 0, Math.PI * 2);
+    ctx.moveTo(f.pts2d[0].sx, f.pts2d[0].sy);
+    for (let i = 1; i < f.pts2d.length; i++) {
+      ctx.lineTo(f.pts2d[i].sx, f.pts2d[i].sy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = f.fill;
     ctx.fill();
-    ctx.fillStyle = '#67e8f9';
-    ctx.font = 'bold 11px Consolas';
-    ctx.fillText(`${a.id} (轨旁无IMU)`, a.x - 38, a.side === 'top' ? a.y - 12 : a.y + 20);
+    ctx.strokeStyle = f.stroke;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
 
-    // Connect to closest train nodes
-    nodes.forEach((n, idx) => {
-      const distPx = Math.hypot(a.x - n.x, a.y - n.y);
-      if (distPx < 360) {
-        const isBlocked = (scenario === 'nlos' && idx >= 2 && a.side === 'top');
-        ctx.strokeStyle = isBlocked ? 'rgba(239,68,68,0.45)' : 'rgba(16, 185, 129, 0.45)';
-        ctx.lineWidth = isBlocked ? 1 : 1.5;
-        if (isBlocked) ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(n.x, n.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
+    // Draw illuminated windows on side faces of Line 8 train
+    if ((f.tag === 'sideL' || f.tag === 'sideR') && f.stroke === '#38bdf8') {
+      const [c0, c1, c2, c3] = f.worldCorners;
+      for (let w = 0.12; w < 0.85; w += 0.22) {
+        const w1 = w, w2 = w + 0.13;
+        const winWorld = [
+          { x: c0.x + (c1.x - c0.x) * w1, y: c0.y + 13, z: c0.z + (c1.z - c0.z) * w1 },
+          { x: c0.x + (c1.x - c0.x) * w2, y: c0.y + 13, z: c0.z + (c1.z - c0.z) * w2 },
+          { x: c0.x + (c1.x - c0.x) * w2, y: c0.y + 23, z: c0.z + (c1.z - c0.z) * w2 },
+          { x: c0.x + (c1.x - c0.x) * w1, y: c0.y + 23, z: c0.z + (c1.z - c0.z) * w1 }
+        ].map(p => projectWorld(p.x, p.y, p.z));
+        if (winWorld.every(p => p !== null)) {
+          ctx.beginPath();
+          ctx.moveTo(winWorld[0].sx, winWorld[0].sy);
+          winWorld.slice(1).forEach(p => ctx.lineTo(p.sx, p.sy));
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(186, 230, 253, 0.78)';
+          ctx.fill();
+        }
+      }
+    }
+  });
 
+  // 4. Headlights & Pantograph (受电弓)
+  const headCar = carCenters[0];
+  const tailCar = carCenters[2];
+  const frontX = headCar.cx + carLen * 0.5;
+  const frontZ = getTrackZ(frontX);
+  draw3DSegment({ x: frontX, y: 14, z: frontZ - 10 }, { x: frontX + 95, y: 4, z: frontZ - 28 }, 'rgba(250, 204, 21, 0.42)', 4);
+  draw3DSegment({ x: frontX, y: 14, z: frontZ + 10 }, { x: frontX + 95, y: 4, z: frontZ + 28 }, 'rgba(250, 204, 21, 0.42)', 4);
+
+  // Roof Pantograph on Middle Car touching Catenary
+  const midCar = carCenters[1];
+  draw3DSegment({ x: midCar.cx - 8, y: 34, z: midCar.cz }, { x: midCar.cx, y: 54, z: midCar.cz }, '#94a3b8', 2);
+  draw3DSegment({ x: midCar.cx, y: 54, z: midCar.cz }, { x: midCar.cx - 6, y: 74, z: midCar.cz }, '#cbd5e1', 2);
+  draw3DSegment({ x: midCar.cx - 6, y: 74, z: midCar.cz - 10 }, { x: midCar.cx - 6, y: 74, z: midCar.cz + 10 }, '#f59e0b', 2.5);
+
+  // 5. Compute 3D World Positions of 4 On-Board UWB+IMU Nodes (N1~N4 on Roof Corners)
+  const tailRearX = tailCar.cx - carLen * 0.45;
+  const tailRearZ = getTrackZ(tailRearX);
+  const headFrontX = headCar.cx + carLen * 0.45;
+  const headFrontZ = getTrackZ(headFrontX);
+
+  const nodes3D = [
+    { id: 'N1(尾左)', x: tailRearX,  y: 36, z: tailRearZ - 16 },
+    { id: 'N2(尾右)', x: tailRearX,  y: 36, z: tailRearZ + 16 },
+    { id: 'N3(头左)', x: headFrontX, y: 36, z: headFrontZ - 16 },
+    { id: 'N4(头右)', x: headFrontX, y: 36, z: headFrontZ + 16 }
+  ];
+
+  // Draw 3D Rigid-Body Constraint Skeleton linking N1-N2-N4-N3 on Train Roof
+  draw3DSegment(nodes3D[0], nodes3D[2], 'rgba(245, 158, 11, 0.65)', 1.6, [5, 4]);
+  draw3DSegment(nodes3D[1], nodes3D[3], 'rgba(245, 158, 11, 0.65)', 1.6, [5, 4]);
+  draw3DSegment(nodes3D[0], nodes3D[1], 'rgba(245, 158, 11, 0.75)', 1.8);
+  draw3DSegment(nodes3D[2], nodes3D[3], 'rgba(245, 158, 11, 0.75)', 1.8);
+
+  // 6. Draw 3D Wayside Anchors, Slant Ranging Rays & Animated Pulse Particles
+  anchors3D.forEach(a => {
+    // Anchor mounting bracket to tunnel wall
+    draw3DSegment({ x: a.x, y: a.y, z: a.z }, { x: a.x, y: a.y, z: a.side === 'left' ? a.z - 12 : a.z + 12 }, '#06b6d4', 3);
+
+    const pa = projectWorld(a.x, a.y, a.z);
+    if (pa) {
+      // Glowing 3D Wayside Anchor Box
+      const boxR = Math.max(4, Math.min(10, 3200 / pa.depth));
+      ctx.fillStyle = '#06b6d4';
+      ctx.beginPath();
+      ctx.arc(pa.sx, pa.sy, boxR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#cffafe';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#67e8f9';
+      ctx.font = 'bold 11px Consolas';
+      ctx.fillText(`${a.id} (${a.km})`, pa.sx - 36, pa.sy - boxR - 6);
+    }
+
+    // Ranging rays to each on-board node within 380m (world distance < 390)
+    nodes3D.forEach((n, idx) => {
+      const dist3D = Math.hypot(a.x - n.x, a.y - n.y, a.z - n.z);
+      if (dist3D < 370) {
+        // Check if NLOS opposing train blocks left-side anchors for head nodes
+        const isBlocked = (
+          scenario === 'nlos' &&
+          a.side === 'left' &&
+          Math.abs(n.x - oppTrainX) < 125
+        ) || (jamPower > -45);
+
+        const rayColor = isBlocked ? 'rgba(239, 68, 68, 0.55)' : 'rgba(16, 185, 129, 0.52)';
+        draw3DSegment(a, n, rayColor, isBlocked ? 1.2 : 1.7, isBlocked ? [4, 4] : null);
+
+        // Animated 3D Flying UWB Pulse Particle along the ray
+        if (!isBlocked) {
+          const phase = ((tick * 0.045 + idx * 0.25) % 1);
+          const px = a.x + (n.x - a.x) * phase;
+          const py = a.y + (n.y - a.y) * phase;
+          const pz = a.z + (n.z - a.z) * phase;
+          const pp = projectWorld(px, py, pz);
+          if (pp) {
+            ctx.fillStyle = '#34d399';
+            ctx.beginPath();
+            ctx.arc(pp.sx, pp.sy, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Distance label on head-left node (N3)
         if (idx === 2) {
-          const realDist = (distPx * 0.35).toFixed(2);
-          ctx.fillStyle = isBlocked ? '#f87171' : '#34d399';
-          ctx.font = '10px Consolas';
-          ctx.fillText(`${realDist}m`, (a.x + n.x) / 2 - 14, (a.y + n.y) / 2);
+          const midPt = projectWorld((a.x + n.x) * 0.5, (a.y + n.y) * 0.5 + 6, (a.z + n.z) * 0.5);
+          if (midPt) {
+            const realMeters = (dist3D * 0.58).toFixed(2);
+            ctx.fillStyle = isBlocked ? '#f87171' : '#a7f3d0';
+            ctx.font = 'bold 10px Consolas';
+            ctx.fillText(isBlocked ? `NLOS剔除(${realMeters}m)` : `${realMeters}m`, midPt.sx - 18, midPt.sy);
+          }
         }
       }
     });
   });
 
-  // Draw 4 Train Nodes
-  nodes.forEach(n => {
+  // 7. Draw 4 On-Board UWB+IMU Roof Beacons & Labels
+  nodes3D.forEach(n => {
+    const pn = projectWorld(n.x, n.y, n.z);
+    if (!pn) return;
+    const r = Math.max(3.5, Math.min(8, 2500 / pn.depth));
+
+    // Pulsing wave ring
+    const pulseR = r + ((tick * 0.35) % 10);
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(pn.sx, pn.sy, pulseR, 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 5, 0, Math.PI * 2);
+    ctx.arc(pn.sx, pn.sy, r, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.fillStyle = '#fde68a';
+    ctx.font = 'bold 10px "Microsoft YaHei"';
+    ctx.fillText(n.id, pn.sx - 18, pn.sy - r - 5);
   });
+
+  // 8. Draw Train Roof Banner & IMU Dead-Reckoning Vector
+  const roofBanner = projectWorld(midCar.cx, 52, midCar.cz);
+  if (roofBanner && camView !== 'cab') {
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(roofBanner.sx - 135, roofBanner.sy - 16, 270, 22, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 11px "Microsoft YaHei"';
+    ctx.fillText('🚄 上海8号线 0842号列车 (3D刚体 L=140.0m | SCH1633惯导)', roofBanner.sx - 126, roofBanner.sy - 1);
+  }
+
+  if (scenario === 'nlos') {
+    const oppLbl = projectWorld(oppTrainX, 45, -82);
+    if (oppLbl) {
+      ctx.fillStyle = '#fca5a5';
+      ctx.font = 'bold 11px "Microsoft YaHei"';
+      ctx.fillText('⚠️ 对向列车3D交会遮挡 (Murata SCH1633 1000Hz 惯导接管中)', oppLbl.sx - 130, oppLbl.sy);
+    }
+  }
 
   requestAnimationFrame(drawLoop);
 }
