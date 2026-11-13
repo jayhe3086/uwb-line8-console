@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>上海地铁8号线/6号线 · UWB+IMU 车地精确定位系统全功能交互式控制台</title>
+<style>
+  :root {
+    --bg-dark: #090d16;
+    --panel-bg: #111827;
+    --panel-border: #1f2937;
+    --accent-blue: #38bdf8;
+    --accent-cyan: #06b6d4;
+    --accent-green: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-purple: #a855f7;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+  /* Header */
+  header {
+    background: linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    border-bottom: 1px solid #334155;
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .brand-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .badge-line8 {
+    background: #0099d8;
+    color: #fff;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+  }
+  .brand-title h1 {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #fff, #93c5fd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header-kpis {
+    display: flex;
+    gap: 18px;
+  }
+  .kpi-pill {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid #334155;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kpi-pill strong {
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    color: var(--accent-blue);
+  }
+  .dot-live {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* Navigation Tabs */
+  .nav-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 10px 24px 0;
+    background: #0b1120;
+    border-bottom: 1px solid #1e293b;
+  }
+  .tab-btn {
+    background: #162032;
+    color: var(--text-muted);
+    border: 1px solid #26354d;
+    border-bottom: none;
+    padding: 9px 18px;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: var(--panel-bg);
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    box-shadow: inset 0 2px 0 var(--accent-blue);
+  }
+  .tab-btn:hover:not(.active) {
+    color: #fff;
+    background: #1e293b;
+  }
+
+  /* Main Grid */
+  .tab-content {
+    display: none;
+    padding: 16px 24px;
+    flex: 1;
+  }
+  .tab-content.active {
+    display: grid;
+  }
+  #tab-overview.active {
+    grid-template-columns: 1.55fr 1fr;
+    gap: 16px;
+  }
+  #tab-pcb.active {
+    grid-template-columns: 1.35fr 1fr;
+    gap: 16px;
+  }
+  #tab-rf.active, #tab-proto.active {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 8px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title span.tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent-blue);
+    font-weight: 600;
+  }
+
+  /* Canvas & Controls */
+  canvas#tunnelCanvas {
+    width: 100%;
+    height: 310px;
+    background: #070b12;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+  }
+  .ctrl-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .mode-btn {
+    background: #1e293b;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .mode-btn.active {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border-color: #10b981;
+    font-weight: 700;
+  }
+  .mode-btn.warn.active {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border-color: #f59e0b;
+  }
+  .mode-btn.danger.active {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border-color: #ef4444;
+  }
+
+  /* Telemetry Grid */
+  .telemetry-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .metric-box {
+    background: #0b1120;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .metric-val {
+    font-family: Consolas, monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-blue);
+  }
+  .metric-sub {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+  }
+
+  /* Sliders & Hardware State */
+  .slider-group {
+    background: #0b1120;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .slider-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent-blue);
+    cursor: pointer;
+  }
+  .state-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .state-table th, .state-table td {
+    border: 1px solid #1e293b;
+    padding: 6px 8px;
+    text-align: left;
+  }
+  .state-table th {
+    background: #162032;
+    color: #93c5fd;
+  }
+  .mono { font-family: Consolas, monospace; }
+  .pill-ok { background: rgba(16,185,129,0.18); color: #34d399; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .pill-warn { background: rgba(245,158,11,0.18); color: #fbbf24; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .pill-err { background: rgba(239,68,68,0.18); color: #f87171; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+
+  /* Interactive PCB Board Map */
+  .pcb-board {
+    background: #063927;
+    border: 3px solid #10b981;
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    min-height: 430px;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px;
+  }
+  .pcb-zone {
+    border: 1px dashed rgba(255,255,255,0.3);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .pcb-zone-title {
+    font-size: 11px;
+    color: #6ee7b7;
+    margin-bottom: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .chip-node {
+    background: #1e293b;
+    border: 1.5px solid #64748b;
+    border-radius: 6px;
+    padding: 7px 9px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.18s;
+    position: relative;
+  }
+  .chip-node:hover, .chip-node.selected {
+    border-color: var(--accent-blue);
+    background: #0f172a;
+    transform: translateY(-1px);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  }
+  .chip-node.dnp-mode {
+    opacity: 0.35;
+    border-style: dashed;
+    border-color: #f59e0b;
+  }
+  .chip-node .ref {
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    color: var(--accent-amber);
+    font-weight: 700;
+  }
+  .chip-node .mpn {
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    color: #fff;
+    font-weight: 700;
+  }
+  .chip-node .desc {
+    font-size: 11px;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand-title">
+    <span class="badge-line8">上海地铁 8号线 / 6号线</span>
+    <h1>UWB + 车规6轴IMU 车地精确定位系统 · 全功能交互式工程控制台</h1>
+  </div>
+  <div class="header-kpis">
+    <div class="kpi-pill"><span class="dot-live"></span> 系统状态: <strong id="top-status">实时测距融合中</strong></div>
+    <div class="kpi-pill">车端节点(100列×4): <strong>400 套</strong></div>
+    <div class="kpi-pill">轨旁锚点(60~120m): <strong>500~600 套</strong></div>
+    <div class="kpi-pill">工作频段: <strong>Ch9 (7987.2 MHz)</strong></div>
+  </div>
+</header>
+
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('overview', this)">1. 列车实时定位与隧道/高架全局仿真</button>
+  <button class="tab-btn" onclick="switchTab('pcb', this)">2. 单板 PCBA 交互式逆向拆解 (车端 vs 轨旁异贴)</button>
+  <button class="tab-btn" onclick="switchTab('rf', this)">3. 射频前端四态机 · 380m链路预算 · 1000套成本</button>
+  <button class="tab-btn" onclick="switchTab('proto', this)">4. 空口TDMA协议抓包 · 产线标定SOP · SHL6抗干扰验收</button>
+</div>
+
+<!-- ======================= TAB 1: GLOBAL SIMULATION ======================= -->
+<div id="tab-overview" class="tab-content active">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        上海8号线 列车4节点 (N1~N4) × 轨旁锚点群 (Ak) 实时测距与航位推算视图
+        <span class="tag">DS-TWR + 15维ESKF紧耦合</span>
+      </div>
+      <div class="ctrl-bar">
+        <button class="mode-btn active" onclick="setScenario('cruise', this)">隧道正常巡航 (72km/h)</button>
+        <button class="mode-btn" onclick="setScenario('station', this)">进站停稳 (触发ZUPT零速校准)</button>
+        <button class="mode-btn warn" onclick="setScenario('turnout', this)">道岔变轨 (双基线股道识别)</button>
+        <button class="mode-btn danger" onclick="setScenario('nlos', this)">会车遮挡/盲区 (IMU航位推算接管)</button>
+      </div>
+    </div>
+
+    <canvas id="tunnelCanvas" width="900" height="310"></canvas>
+
+    <div class="telemetry-grid">
+      <div class="metric-box">
+        <div class="metric-label">列车实时里程 s(t)</div>
+        <div class="metric-val" id="val-mileage">14,285.42 m</div>
+        <div class="metric-sub" id="val-zone">区间：东方体育中心 → 凌兆新村 (地下盾构)</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">融合车速 v(t) / 定位精度</div>
+        <div class="metric-val" id="val-speed">72.0 km/h</div>
+        <div class="metric-sub">3σ纵向误差: <span class="mono" id="val-err" style="color:#34d399">±4.8 cm</span></div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">头尾车长刚体残差 |ΔL - 140m|</div>
+        <div class="metric-val" id="val-rigid">0.03 m</div>
+        <div class="metric-sub" id="val-rigid-status">刚体约束校验通过 (无NLOS跳变)</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">横向双天线基线 · 股道判别</div>
+        <div class="metric-val" id="val-track">上行正线 (Track 1)</div>
+        <div class="metric-sub" id="val-imu-bias">SCH1633 陀螺零偏: 0.42 °/h</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Real-time Node Status & Functional Architecture Summary -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        本系统 6 大核心功能模块实时工作状态
+        <span class="tag">由19项实拍BOM逆向还原</span>
+      </div>
+    </div>
+
+    <table class="state-table">
+      <thead>
+        <tr>
+          <th>核心子系统</th>
+          <th>关键硬件型号</th>
+          <th>当前实时运行状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1. UWB 远距测距核</strong></td>
+          <td class="mono">DW3210TR13 + 38.4M TCXO</td>
+          <td><span class="pill-ok" id="st-uwb">Ch9 (7987.2MHz) 50Hz 双向测距</span></td>
+        </tr>
+        <tr>
+          <td><strong>2. 射频功放/低噪放级联</strong></td>
+          <td class="mono">QM14070 + QM14068 + 74AVC2T45</td>
+          <td><span class="pill-ok" id="st-rffe">TX +21.5dBm / RX +15dB 自动切换</span></td>
+        </tr>
+        <tr>
+          <td><strong>3. 地铁带外干扰抑制</strong></td>
+          <td class="mono">Johanson 7240BP15B2000002E</td>
+          <td><span class="pill-ok">CBTC 2.4G/5.8G & LTE-M 抑制 >38dB</span></td>
+        </tr>
+        <tr>
+          <td><strong>4. 车端 6轴惯导融合</strong></td>
+          <td class="mono">Murata SCH1633-D01-004</td>
+          <td><span class="pill-ok" id="st-imu">1000Hz SafeSPI 紧耦合更新中</span></td>
+        </tr>
+        <tr>
+          <td><strong>5. 射频群时延温漂补偿</strong></td>
+          <td class="mono">TI LMT87DCKR (-50~150°C)</td>
+          <td><span class="pill-ok" id="st-temp">T=25.0°C | ANT_DLY=16456 LSB</span></td>
+        </tr>
+        <tr>
+          <td><strong>6. 2.5kV 隔离百兆同步网</strong></td>
+          <td class="mono">WE 7490140117C + DP83848I</td>
+          <td><span class="pill-ok">IEEE 1588v2 PTP 锁相 (<150ns)</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="slider-group">
+      <div class="slider-top">
+        <span><strong>模拟地下隧道 ↔ 浦江高架段环境温度 (LMT87DCKR 实时温补验证)</strong></span>
+        <span class="mono" id="lbl-temp" style="color:var(--accent-amber)">25.0 °C (Vout = 2303 mV)</span>
+      </div>
+      <input type="range" id="rng-temp" min="-20" max="75" step="1" value="25" oninput="updateThermalSim()">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8;">
+        <span>-20°C (冬季高架严寒)</span>
+        <span id="lbl-antdly" class="mono" style="color:#34d399">时延漂移: +0.0 ps | 修正后测距残差: 0.0 cm</span>
+        <span>+75°C (夏季功放满载箱温)</span>
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-top">
+        <span><strong>模拟 SHL6 现场 7.5~8.5GHz 带内矢量干扰源功率 (SMW200A / 思仪1465D-V)</strong></span>
+        <span class="mono" id="lbl-jam" style="color:var(--accent-blue)">关闭 (-110 dBm)</span>
+      </div>
+      <input type="range" id="rng-jam" min="-110" max="-15" step="1" value="-110" oninput="updateJammerSim()">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8;">
+        <span>无干扰 (-110dBm)</span>
+        <span id="lbl-jam-effect" class="mono" style="color:#34d399">SINR: +24.5 dB | PER丢包率: 0.0% | 定位正常</span>
+        <span>强阻塞干扰 (-15dBm)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= TAB 2: INTERACTIVE PCB & BOM SPLIT ======================= -->
+<div id="tab-pcb" class="tab-content">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        单板 PCBA 4层阻抗受控布局与“同板异贴”交互式透视图 (点击任意芯片查看逆向详情)
+      </div>
+      <div class="ctrl-bar">
+        <button class="mode-btn active" id="btn-board-train" onclick="setBoardVariant('train')">车端满配版 (400套 · ¥320.31)</button>
+        <button class="mode-btn warn" id="btn-board-wayside" onclick="setBoardVariant('wayside')">轨旁精简版 (500~600套 · 空贴IMU · ¥171.97)</button>
+      </div>
+    </div>
+
+    <div class="pcb-board">
+      <!-- Zone 1: RF Front-End -->
+      <div class="pcb-zone">
+        <div class="pcb-zone-title">ZONE A · 8GHz UWB 射频屏蔽腔 (50Ω CPWG)</div>
+        <div class="chip-node selected" onclick="inspectChip('U1', this)">
+          <div class="ref">U1 · 实拍确认 (¥78.785 | L/T 14周)</div>
+          <div class="mpn">Qorvo DW3210TR13</div>
+          <div class="desc">Ch5/Ch9 IR-UWB 收发器 (内置Balun + SPI1)</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U2', this)">
+          <div class="ref">U2 · 实拍确认 (¥14.698)</div>
+          <div class="mpn">Qorvo QM14070TR7</div>
+          <div class="desc">6~9GHz 外置发射功放 ePA (+23.1dBm, 含RX旁路)</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U3', this)">
+          <div class="ref">U3 · 实拍确认 (¥11.083)</div>
+          <div class="mpn">Qorvo QM14068TR7</div>
+          <div class="desc">6.2~8.3GHz 接收低噪放 eLNA (15dB, NF 1.8dB)</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('FL1', this)">
+          <div class="ref">FL1 · 实拍确认 (¥3.337)</div>
+          <div class="mpn">Johanson 7240BP15B2000002E</div>
+          <div class="desc">车规陶瓷带通滤波器 + TI LMT87DCKR(U5) 等温岛</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U4', this)">
+          <div class="ref">U4 · 实拍确认 (¥1.926)</div>
+          <div class="mpn">Nexperia 74AVC2T45GT-Q100X</div>
+          <div class="desc">2位超高速电平转换 (隔离SPIPOL/PHA + 1.8ns切收发)</div>
+        </div>
+      </div>
+
+      <!-- Zone 2: IMU & MCU -->
+      <div class="pcb-zone">
+        <div class="pcb-zone-title">ZONE B/C · 机械中心惯导区 & 主控同步核</div>
+        <div class="chip-node" id="chip-imu" onclick="inspectChip('U6', this)">
+          <div class="ref">U6 · 实拍确认 (¥200.000 · 核心降本项)</div>
+          <div class="mpn">Murata SCH1633-D01-004</div>
+          <div class="desc" id="desc-imu">车规功能安全 6轴IMU (LCC-24) + GRM188Z7软端头抗振电容</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U7', this)">
+          <div class="ref">U7 · 原理图闭环反推</div>
+          <div class="mpn">ST STM32F407VET6 (或GD32)</div>
+          <div class="desc">Cortex-M4F 168MHz + IEEE1588硬件PTP + 3路SPI</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('Y1', this)">
+          <div class="ref">Y1 + L1 + C1 · 实拍无源锁扣</div>
+          <div class="mpn">38.4MHz TCXO + CWF1612A-1R0K</div>
+          <div class="desc">Bourns 1uH 片内DCDC电感 + KEMET 10nF 1% C0G环路电容</div>
+        </div>
+      </div>
+
+      <!-- Zone 3: Ethernet & EN50155 Power -->
+      <div class="pcb-zone">
+        <div class="pcb-zone-title">ZONE D · EN50155 2.5kV隔离网口 & 24V电源树</div>
+        <div class="chip-node" onclick="inspectChip('T1', this)">
+          <div class="ref">T1 · 实拍确认 (¥27.553)</div>
+          <div class="mpn">Würth 7490140117C</div>
+          <div class="desc">2500Vrms 高压隔离网变 (4.0mm爬电禁布槽, 非PoE)</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U9', this)">
+          <div class="ref">U9 + J3 · 轨交网口链</div>
+          <div class="mpn">TI DP83848I + M12 D-Code 4P</div>
+          <div class="desc">工业百兆PHY + CDSOT236防雷浪涌 + 抗振航空母座</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U12', this)">
+          <div class="ref">U12 · 实拍确认 (¥4.254)</div>
+          <div class="mpn">Microchip MIC5303-2.5YMT-TR</div>
+          <div class="desc">由EXTON门控的超低噪 +2.5V 射频LDO (供LNA/TCXO)</div>
+        </div>
+        <div class="chip-node" onclick="inspectChip('U10', this)">
+          <div class="ref">U10 + U11 + J4 · 轨交电源链</div>
+          <div class="mpn">LMR33630 (24V→5V) + TLV62569 (3.3V)</div>
+          <div class="desc">M12 A码24V输入 + SMCJ33CA浪涌TVS + 共模电感</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chip Inspector Detail Panel -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        元器件引脚级逆向解析器 (Chip Inspector)
+        <span class="tag" id="insp-badge">U1 · 实拍确认</span>
+      </div>
+    </div>
+    <div id="insp-body" style="display:flex; flex-direction:column; gap:12px; font-size:13px; line-height:1.6;">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ======================= TAB 3: RF LINK BUDGET & VSG JAMMER LAB ======================= -->
+<div id="tab-rf" class="tab-content">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        UWB Ch9 (7987.2MHz) 射频四态机与隧道 380m 级联链路预算交互计算器
+      </div>
+    </div>
+    <table class="state-table">
+      <thead>
+        <tr>
+          <th>模式选择 (点击切换观察引脚电平)</th>
+          <th>EXTON</th>
+          <th>GPIO5 (TX)</th>
+          <th>GPIO6 (RX)</th>
+          <th>QM14070 (ePA)</th>
+          <th>QM14068 (eLNA)</th>
+          <th>净链路增益</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr onclick="highlightRfRow(this)" style="cursor:pointer; background:rgba(16,185,129,0.12);">
+          <td><strong>1. 远距发射态 (TX Boost)</strong></td>
+          <td class="mono">3.3V (1)</td>
+          <td class="mono">3.3V→2.5V (1)</td>
+          <td class="mono">0V (0)</td>
+          <td><span class="pill-ok">放大 +14.2dB (23.1dBm)</span></td>
+          <td>TX 内部旁路 (-1.5dB)</td>
+          <td class="mono" style="color:#34d399">+10.9 dB</td>
+        </tr>
+        <tr onclick="highlightRfRow(this)" style="cursor:pointer;">
+          <td><strong>2. 远距接收态 (RX LNA)</strong></td>
+          <td class="mono">3.3V (1)</td>
+          <td class="mono">0V (0)</td>
+          <td class="mono">3.3V→2.5V (1)</td>
+          <td>RX 内部旁路 (-1.6dB)</td>
+          <td><span class="pill-ok">低噪放 +15dB (NF 1.8dB)</span></td>
+          <td class="mono" style="color:#38bdf8">+11.6 dB</td>
+        </tr>
+        <tr onclick="highlightRfRow(this)" style="cursor:pointer;">
+          <td><strong>3. 站台近场直通 (<8m防饱和)</strong></td>
+          <td class="mono">3.3V (1)</td>
+          <td class="mono">0V (0)</td>
+          <td class="mono">0V (0)</td>
+          <td>双向旁路 (-1.6dB)</td>
+          <td>双向旁路 (-1.5dB)</td>
+          <td class="mono" style="color:#fbbf24">-4.9 dB</td>
+        </tr>
+        <tr onclick="highlightRfRow(this)" style="cursor:pointer;">
+          <td><strong>4. 深度休眠态 (Shutdown)</strong></td>
+          <td class="mono">0V (关断2.5V)</td>
+          <td class="mono">Ioff 高阻</td>
+          <td class="mono">Ioff 高阻</td>
+          <td>关断 (<1µA)</td>
+          <td>断电零功耗 (0µA)</td>
+          <td class="mono" style="color:#f87171">隔离关断</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="telemetry-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="metric-box">
+        <div class="metric-label">本板最大允许路径损耗 (MAPL)</div>
+        <div class="metric-val">138.2 dB</div>
+        <div class="metric-sub">较裸 DW3210 提升 +41.4 dB</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">Friis 接收级联噪声系数</div>
+        <div class="metric-val">4.2 dB</div>
+        <div class="metric-sub">含前级 7240BP 滤波器 1.8dB 插损</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">8号线隧道单跳测距半径</div>
+        <div class="metric-val" style="color:#34d399">380 m</div>
+        <div class="metric-sub">同时覆盖前后 3~4 个轨旁基站</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        上海8号线 1,000套成本拆分 & SHL6 7.5~8.5GHz 矢量信号源选型速查
+      </div>
+    </div>
+    <table class="state-table">
+      <thead>
+        <tr>
+          <th>部署端类型</th>
+          <th>配置数量</th>
+          <th>Murata SCH1633 (¥200)</th>
+          <th>样机单板价</th>
+          <th>1k批量目标价</th>
+          <th>8号线试点批量小计</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>车端节点 (On-Board)</strong></td>
+          <td class="mono">400 套 (100车×4)</td>
+          <td><span class="pill-ok">必贴 (隧道航位推算)</span></td>
+          <td class="mono">¥522.68</td>
+          <td class="mono" style="color:#38bdf8">¥320.31</td>
+          <td class="mono">¥128,124.00</td>
+        </tr>
+        <tr>
+          <td><strong>轨旁节点 (Wayside)</strong></td>
+          <td class="mono">500 ~ 600 套</td>
+          <td><span class="pill-warn">DNP 空贴 (省10~12万)</span></td>
+          <td class="mono">¥320.83</td>
+          <td class="mono" style="color:#34d399">¥171.97</td>
+          <td class="mono">¥85,983 ~ ¥103,179</td>
+        </tr>
+        <tr style="background:#162032; font-weight:700;">
+          <td><strong>全线合计 (900~1000套)</strong></td>
+          <td class="mono">900 ~ 1,000 套</td>
+          <td>同 PCB 分两套贴片 BOM</td>
+          <td class="mono">12套样机≈¥6,327</td>
+          <td class="mono">—</td>
+          <td class="mono" style="color:#fbbf24">¥214,107 ~ ¥231,303</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size:12px; color:#94a3b8; background:#0b1120; padding:10px; border-radius:6px; border:1px solid #1e293b;">
+      <strong style="color:#f87171;">供应链与SHL6测试关键提醒：</strong><br>
+      1. <strong>Qorvo DW3210TR13</strong> 唯一交期红灯（<strong>L/T = 14周</strong>），900~1000套试点须立即锁定 1,050 颗整盘期货；<br>
+      2. <strong>SHL6 (7.5~8.5GHz) 抗干扰测试源</strong>：短租优先选 <strong>思仪 1465C-V/1465D-V</strong> (¥1~1.8万/月)、<strong>是德 E8267D-520+602</strong> (¥1.5~2.8万/月) 或 <strong>罗德 SMM100A / SMW200A(B1012)</strong>；若选 <strong>罗德 SGS100A(B112V)</strong> 必须配外置双通道 I/Q 基带源。
+    </div>
+  </div>
+</div>
+
+<!-- ======================= TAB 4: PROTOCOL, FACTORY SOP & SHL6 TEST ======================= -->
+<div id="tab-proto" class="tab-content">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        空口 3帧 ADS-TWR 协议抓包解析 & 100Hz 车载以太网安全报文 (点击切换报文结构)
+        <span class="tag">免全线地图维护 · 轨旁坐标随帧广播</span>
+      </div>
+    </div>
+    <table class="state-table">
+      <thead>
+        <tr>
+          <th>协议层级</th>
+          <th>帧类型 / 周期</th>
+          <th>关键载荷字段 (逆向还原字节映射)</th>
+          <th>工程核心价值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>空口Ch9请求</strong></td>
+          <td class="mono">1. Poll 广播帧 (20ms)</td>
+          <td class="mono">PAN=0x5348("SH") | Train_ID | Node_ID(N1~N4) | Slot_Mask</td>
+          <td>1次广播同时唤醒视野内4个轨旁锚点，避免会车碰撞</td>
+        </tr>
+        <tr style="background:rgba(16,185,129,0.12);">
+          <td><strong>空口Ch9应答</strong></td>
+          <td class="mono">2. Resp 复合帧 (间隔400us)</td>
+          <td class="mono">Anchor_ID | Track_ID | Mileage_cm(4B) | Offset_XY | Rx/Tx_TS(10B)</td>
+          <td><strong>轨旁坐标嵌在帧内</strong>，更换/新增基站无需刷写车载地图</td>
+        </tr>
+        <tr>
+          <td><strong>空口Ch9结束</strong></td>
+          <td class="mono">3. Final 广播帧</td>
+          <td class="mono">Tx_Poll_TS | Rx_Resp[1..4]_TS | Tx_Final_TS | AES-128 STS</td>
+          <td>单轮 <2.8ms 完成1对4双向测距，带STS防重放欺骗</td>
+        </tr>
+        <tr>
+          <td><strong>M12百兆以太网</strong></td>
+          <td class="mono">4. ECN 安全包 (10ms/100Hz)</td>
+          <td class="mono">PTP_ns(8B) | ANT_DLY | UWB_Meas[4] | SCH1633_IMU[10] | CRC32</td>
+          <td>每包捆绑4锚点斜距 + 10组1kHz惯导增量送车载OBU融合</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card-header" style="margin-top:6px;">
+      <div class="card-title">
+        1,000 套量产 SMT 产线 5步自动化测试与标定规程 (FCT SOP · 单板 <25秒)
+      </div>
+    </div>
+    <table class="state-table">
+      <thead>
+        <tr>
+          <th>工序</th>
+          <th>标定项目</th>
+          <th>自动化工装执行动作</th>
+          <th>出厂合格判据 (Pass Criteria)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">Step 1</td>
+          <td><strong>上电 SPI Mode 0 检查</strong></td>
+          <td>通24V拉低RSTn测+2.5V=0V；释放后读DW3210 DEV_ID</td>
+          <td><span class="pill-ok">DEV_ID=0xDECA0302 一次通过</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Step 2</td>
+          <td><strong>38.4M TCXO 频偏校准</strong></td>
+          <td>发Ch9(7987.2MHz) CW单音，二分调节 XTAL_TRIM(0~63)</td>
+          <td><span class="pill-ok">载波频偏 < ±1.0 ppm (±8kHz)</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Step 3</td>
+          <td><strong>ePA/eLNA 三态增益校验</strong></td>
+          <td>切换74AVC2T45控制脚测 TX Boost / RX LNA / Bypass</td>
+          <td><span class="pill-ok">Pout ≥ +21.5dBm | Bypass回落16dB</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Step 4</td>
+          <td><strong>LMT87 + ANT_DLY 零距标定</strong></td>
+          <td>经1.000m标准稳幅线与金机对测200次均值写入 W25Q64</td>
+          <td><span class="pill-ok">标定后零距测距残差 < ±1.5 cm</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Step 5</td>
+          <td><strong>IMU自检与2.5kV耐压</strong></td>
+          <td>车端核验SCH1633 SafeSPI CRC；7490140117C网口耐压</td>
+          <td><span class="pill-ok">陀螺噪声 <0.02°/s | 2500Vrms无击穿</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        SHL6 (上海6号线) 7.5~8.5GHz 矢量信号发生器抗干扰验收测试执行台
+        <span class="tag">预设 State 1~4 一键调用</span>
+      </div>
+    </div>
+    <table class="state-table">
+      <thead>
+        <tr>
+          <th>信号源预设槽位</th>
+          <th>测试频点与波形 (VSG设置)</th>
+          <th>干扰功率步进</th>
+          <th>业主目击验收合格标准</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono"><strong>State 1 (下邻频)</strong></td>
+          <td><strong>7.500 GHz</strong> | 100MHz OFDM宽带调制</td>
+          <td class="mono">-40 → 0 dBm</td>
+          <td><span class="pill-ok">PER丢包率 < 1% | 精度劣化 < 2cm</span></td>
+        </tr>
+        <tr>
+          <td class="mono"><strong>State 2 (上邻频)</strong></td>
+          <td><strong>8.500 GHz</strong> | 100MHz 宽带/脉冲波形</td>
+          <td class="mono">-40 → 0 dBm</td>
+          <td><span class="pill-ok">7240BP陡峭滚降抑制 | PER < 1%</span></td>
+        </tr>
+        <tr>
+          <td class="mono"><strong>State 3 (同频带内)</strong></td>
+          <td><strong>7.9872 GHz (Ch9中心)</strong> | 160MHz AWGN白噪</td>
+          <td class="mono">-75 → -30 dBm</td>
+          <td><span class="pill-ok">≤-50dBm时 PER < 5% 连续可用</span></td>
+        </tr>
+        <tr style="background:rgba(245,158,11,0.14);">
+          <td class="mono"><strong>State 4 (极限黑障)</strong></td>
+          <td><strong>7.9872 GHz</strong> | +10 dBm 全功率压死UWB 30秒</td>
+          <td class="mono">+10 dBm (PER=100%)</td>
+          <td><span class="pill-warn">绝不输出跳变假位置 + SCH1633惯导30秒误差 <20cm</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size:12px; color:#cbd5e1; background:#0b1120; padding:12px; border-radius:8px; border:1px solid #1e293b; line-height:1.65;">
+      <strong style="color:#38bdf8;">SHL6 夜间天窗点现场操作口诀（在线技术交流重点保存项）：</strong><br>
+      1. 进场前在办公区通过线上技术交流，让供应商工程师指导将上述 <strong>Case 1 ~ Case 4</strong> 波形提前存入信号源（如思仪 1465D-V / 是德 E8267D / 罗德 SMM100A）的 <code>Recall State 1~4</code>；<br>
+      2. 地铁隧道现场测试时，只需按 <code>Recall 1 → RF ON</code> 保持 30 秒记录上位机日志，4 个用例合计仅需 <strong>15 分钟</strong> 即可完成全部业主目击数据采集；<br>
+      3. 执行 <strong>State 4 (+10dBm 极限压制)</strong> 时，向业主重点展示本控制台 <strong>头尾 140m 车长刚体残差拦截假距离 + Murata SCH1633 1000Hz 惯导平滑接管</strong> 的曲线，撤除干扰后 0.1 秒内瞬间恢复 ±5cm 锁定。
+    </div>
+  </div>
+</div>
+
+<script>
+const chipData = {
+  U1: {
+    badge: 'U1 · 实拍确认 (¥78.785 | L/T=14周)',
+    title: 'Qorvo DW3210TR13 — IEEE 802.15.4z IR-UWB 核心收发器',
+    pins: [
+      ['RF1 (Pin 50Ω)', '单端50Ω射频口（片内已集成巴伦），经 C3 (250pF C0G) 隔直直连 U2 (QM14070) 输入端'],
+      ['GPIO5 / SPIPOL', '经 R7(10kΩ) 下拉锁定上电 SPI Mode 0，进 U4(74AVC2T45 A1) 输出 2.5V EXTTXE 控制功放'],
+      ['GPIO6 / SPIPHA', '经 R8(10kΩ) 下拉锁定上电 SPI Mode 0，进 U4(74AVC2T45 A2) 输出 2.5V EXTRXE 控制低噪放'],
+      ['EXTON', '唤醒高电平使能 U12 (MIC5303-2.5YMT)，实现休眠彻底关断射频前端与上电防误发射'],
+      ['VDDDCDC', '连接实拍确认的 L1 (Bourns CWF1612A-1R0K 1.0µH 电感) 与 6颗 Walsin 220nF 电容'],
+      ['VDDPLL / LOOP', '连接实拍确认的 2颗 KEMET C0603C103F4GACTU (10nF ±1% C0G 零温漂电容)']
+    ]
+  },
+  U2: {
+    badge: 'U2 · 实拍确认 (¥14.698 | 两图重合锚点)',
+    title: 'Qorvo QM14070TR7 — 6.0~9.0 GHz UWB 外置发射功放 (ePA)',
+    pins: [
+      ['VDD (+5.0V_PA)', '由一级同步Buck (LMR33630) 经磁珠 FB1 及村田软端头 4.7µF 电容 (GRM188Z71C475KE21D) 供电'],
+      ['RFIN / RFOUT', '与 QM14068 直接串联（无外置射频开关），发射增益 +14.2dB，线性输出 +21.5~23.1dBm'],
+      ['TX_EN / BYP', '由 74AVC2T45 输出 2.5V 控制：发射时开启功放，接收时切入内部低损旁路 (-1.6dB)']
+    ]
+  },
+  U3: {
+    badge: 'U3 · 实拍确认 (¥11.083 | STK)',
+    title: 'Qorvo QM14068TR7 — 6.2~8.3 GHz UWB 外置接收低噪放 (eLNA)',
+    pins: [
+      ['VDD (+2V5_RF)', '由 Microchip MIC5303-2.5YMT-TR 超低噪 LDO 供电，保证 1.8dB 极低噪声系数'],
+      ['RFIN / RFOUT', '接收态提供 +15dB 增益，将整板接收灵敏度提升至 -106.5dBm；发射态内部旁路通过高功率信号']
+    ]
+  },
+  FL1: {
+    badge: 'FL1 + U5 · 实拍确认 (¥3.337 + ¥2.863)',
+    title: 'Johanson 7240BP15B2000002E 带通滤波器 + TI LMT87DCKR 测温芯片',
+    pins: [
+      ['FL1 (6.24~8.24GHz)', '置于天线最前端，对地铁隧道 2.4G/5.8GHz CBTC Wi-Fi 及 1.8GHz LTE-M 干扰提供 >35dB 抑制'],
+      ['Walsin 2.0pF (C6~C9)', '实拍 RF15N2R0B250CT (2.0pF ±0.1pF) 用于消除滤波器与天线端口寄生电抗'],
+      ['U5 (LMT87DCKR)', '与 FL1、QM14070 共铜皮等温布局，每 100ms 采样温度动态修正 DW3210 ANT_DLY 寄存器']
+    ]
+  },
+  U4: {
+    badge: 'U4 · 实拍确认 (¥1.926 | AEC-Q100)',
+    title: 'Nexperia 74AVC2T45GT-Q100X — 2位双电源超高速电平转换器',
+    pins: [
+      ['VCCA (3.3V) / VCCB (2.5V)', '桥接 DW3210 (3.3V IO域) 与射频前端 (2.5V 控制域)，传输延迟 < 1.8ns'],
+      ['Ioff 掉电高阻特性', '当 EXTON=0 关闭 2.5V 时，输出强制高阻态，彻底杜绝上电瞬间功放自激']
+    ]
+  },
+  U6: {
+    badge: 'U6 · 实拍确认 (¥200.000 | 车端必贴 / 轨旁DNP空贴)',
+    title: 'Murata SCH1633-D01-004 — 车规功能安全级 6轴 MEMS 惯性传感器 (IMU)',
+    pins: [
+      ['SPI2 (SafeSPI v2.0)', '48-bit 带 CRC 硬件校验帧，1000Hz 输出三轴角速度与三轴加速度，零偏稳定性 ~0.5°/h 级'],
+      ['EXTSYNC / DRY', '由 MCU TIM3 注入与 PTP 对齐的 1kHz 同步脉冲，微秒级对齐 UWB 测距帧与惯导积分时标'],
+      ['同板异贴降本策略', '车端 400 套全贴用于隧道航位推算；轨旁 500~600 套静止锚点直接 DNP 空贴，立省 10~12 万元']
+    ]
+  },
+  U7: {
+    badge: 'U7 · 原理图闭环反推',
+    title: 'STM32F407VET6 (或国产 GD32F407VET6) — 工业级主控 MCU',
+    pins: [
+      ['SPI1 (36MHz) + TIM2', '高速读写 DW3210 并通过 TIM2_CH1 硬件捕获 IRQ 上升沿锁存本机时标'],
+      ['ETH RMII + PTP', '内置 IEEE 1588v2 硬件时间戳 MAC，配合 DP83848I 实现轨旁锚点群亚微秒时钟同步'],
+      ['Cortex-M4F FPU', '车端实时运行 15 维误差状态卡尔曼滤波 (ESKF)、头尾车长刚体约束剔除及进站 ZUPT 零速修正']
+    ]
+  },
+  Y1: {
+    badge: 'Y1 + L1 + C1 · 基准时钟与内部电源网络',
+    title: '38.4MHz ±1.5ppm TCXO + Bourns 1.0µH 电感 + KEMET 10nF 1% C0G',
+    pins: [
+      ['Y1 (38.400MHz TCXO)', '由 MIC5303 洁净 2.5V 供电，经 250pF C0G 电容耦合至 DW3210 XTAL1'],
+      ['L1 (CWF1612A-1R0K)', '实拍确认 1.0µH 600mA 绕线电感，专供 DW3210 片内 VDDDCDC 降压核电源'],
+      ['C1/C2 (C0603C103F4GACTU)', '实拍确认 10nF ±1% C0G 电容，零温漂保障 PLL 锁相环相位噪声']
+    ]
+  },
+  T1: {
+    badge: 'T1 · 实拍确认 (¥27.553 | WE-LAN High Voltage)',
+    title: 'Würth Elektronik 7490140117C — 2500Vrms 高隔离百兆网络变压器',
+    pins: [
+      ['2500Vrms / 4.0mm 爬电', '专门针对轨交 EN 50155 高压电气隔离选型，PCB 正下方四层铜皮全部挖空 ≥4.0mm'],
+      ['Non-PoE 独立供电证据', '官方规格书确认为非 PoE 高压网变，证明网口采用 4芯 M12 D-Code，电源采用独立 M12 A-Code 24V']
+    ]
+  },
+  U9: {
+    badge: 'U9 + J3 · 轨交隔离百兆以太网链',
+    title: 'TI DP83848I 工业百兆 PHY + M12 D-Coding 抗振连接器',
+    pins: [
+      ['TD± / RD± 差分对', '经 4颗 49.9Ω 1% 匹配电阻及 Bourns CDSOT236 防雷浪涌阵列进 T1 网变'],
+      ['J3 (M12 D-Code 4P)', '车端接入列车 ECN 以太网，轨旁接入隧道工业环网交换机']
+    ]
+  },
+  U12: {
+    badge: 'U12 · 实拍确认 (¥4.254)',
+    title: 'Microchip MIC5303-2.5YMT-TR — 2.5V/300mA 超低噪声射频 LDO',
+    pins: [
+      ['VOUT (+2V5_RF)', '35µVrms 超低输出噪声，专供 QM14068 低噪放、38.4MHz TCXO 与 74AVC2T45 低压侧 VCCB'],
+      ['EN (由 EXTON 驱动)', '受控于 DW3210 EXTON，实现上电时序保护与休眠零功耗']
+    ]
+  },
+  U10: {
+    badge: 'U10 + U11 + J4 · EN50155 轨交电源树',
+    title: 'TI LMR33630 (24V→5V/3A) + TLV62569 (5V→3.3V/2A) + SMCJ33CA 防浪涌',
+    pins: [
+      ['J4 (M12 A-Code) + 防护', 'PPTC 自恢复保险丝 F1 + SMCJ33CA (1500W TVS) + PMEG6030 防反接 + 470µH 共模电感'],
+      ['三级零冗余电压轨', '+24V_IN → +5.0V (直供 QM14070 功放) → +3.3V (MCU/PHY/DW3210/IMU) → +2.5V (LNA/TCXO)']
+    ]
+  }
+};
+
+function inspectChip(key, el) {
+  document.querySelectorAll('.chip-node').forEach(n => n.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+  const d = chipData[key];
+  document.getElementById('insp-badge').textContent = d.badge;
+  let html = `<div style="font-size:15px; font-weight:700; color:#38bdf8;">${d.title}</div>`;
+  html += `<table class="state-table"><thead><tr><th style="width:32%">引脚 / 子网络</th><th>逆向还原连接关系与工程作用</th></tr></thead><tbody>`;
+  for (const [p, desc] of d.pins) {
+    html += `<tr><td class="mono" style="color:#fbbf24; font-weight:700;">${p}</td><td>${desc}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  document.getElementById('insp-body').innerHTML = html;
+}
+inspectChip('U1', document.querySelector('.chip-node'));
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  btn.classList.add('active');
+}
+
+function setBoardVariant(mode) {
+  const imuNode = document.getElementById('chip-imu');
+  const bTrain = document.getElementById('btn-board-train');
+  const bWay = document.getElementById('btn-board-wayside');
+  if (mode === 'wayside') {
+    imuNode.classList.add('dnp-mode');
+    document.getElementById('desc-imu').textContent = '【轨旁版 DNP 空贴】固定基站静止不动，省下 ¥200/颗 (全线省10~12万元)';
+    bWay.classList.add('active');
+    bTrain.classList.remove('active');
+  } else {
+    imuNode.classList.remove('dnp-mode');
+    document.getElementById('desc-imu').textContent = '车规功能安全 6轴IMU (LCC-24) + GRM188Z7软端头抗振电容';
+    bTrain.classList.add('active');
+    bWay.classList.remove('active');
+  }
+  inspectChip('U6', imuNode);
+}
+
+function highlightRfRow(tr) {
+  tr.parentElement.querySelectorAll('tr').forEach(r => r.style.background = '');
+  tr.style.background = 'rgba(56, 189, 248, 0.16)';
+}
+
+function updateThermalSim() {
+  const tc = parseFloat(document.getElementById('rng-temp').value);
+  const v_mv = Math.round(2637.5 - 13.582 * tc);
+  const drift_ps = ((tc - 25.0) * 2.35).toFixed(1);
+  const reg_adj = Math.round(((tc - 25.0) * 2.35) / 15.65);
+  const ant_dly = 16456 + reg_adj;
+  const uncomp_cm = (Math.abs((tc - 25.0) * 2.35) * 0.03).toFixed(1);
+  document.getElementById('lbl-temp').textContent = `${tc.toFixed(1)} °C (Vout = ${v_mv} mV)`;
+  document.getElementById('lbl-antdly').textContent = `未补漂移: ${drift_ps}ps (${uncomp_cm}cm) → 修正ANT_DLY=${ant_dly} (残差 <0.3cm)`;
+  document.getElementById('st-temp').textContent = `T=${tc.toFixed(1)}°C | ANT_DLY=${ant_dly} LSB`;
+}
+
+let jamPower = -110;
+function updateJammerSim() {
+  jamPower = parseFloat(document.getElementById('rng-jam').value);
+  const lbl = document.getElementById('lbl-jam');
+  const eff = document.getElementById('lbl-jam-effect');
+  if (jamPower <= -100) {
+    lbl.textContent = `关闭 (${jamPower} dBm)`;
+    eff.style.color = '#34d399';
+    eff.textContent = `SINR: +24.5 dB | PER丢包率: 0.0% | DS-TWR + IMU 正常`;
+  } else if (jamPower <= -45) {
+    const sinr = (-55 - jamPower).toFixed(1);
+    lbl.textContent = `带内矢量干扰开启 (${jamPower} dBm @ 7.98GHz)`;
+    eff.style.color = '#38bdf8';
+    eff.textContent = `SINR: +${sinr} dB | PER: 1.8% | QM14068高线性度抗阻塞正常`;
+  } else {
+    const per = Math.min(95, Math.round((jamPower + 45) * 3.1));
+    lbl.textContent = `强干扰压制 (${jamPower} dBm @ 7.98GHz)`;
+    eff.style.color = '#fbbf24';
+    eff.textContent = `UWB丢包率: ${per}% | SCH1633 6轴IMU + 车长刚体约束自动接管定位 (<8cm)`;
+  }
+}
+
+/* ==================== TUNNEL CANVAS ANIMATION ==================== */
+const canvas = document.getElementById('tunnelCanvas');
+const ctx = canvas.getContext('2d');
+let scenario = 'cruise';
+let trainX = 180;
+let mileage = 14285.42;
+let tick = 0;
+
+function setScenario(sc, btn) {
+  scenario = sc;
+  btn.parentElement.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const stUwb = document.getElementById('st-uwb');
+  const stRffe = document.getElementById('st-rffe');
+  const stImu = document.getElementById('st-imu');
+  const topSt = document.getElementById('top-status');
+
+  if (sc === 'cruise') {
+    topSt.textContent = '隧道正常巡航 (DS-TWR+ESKF)';
+    stUwb.className = 'pill-ok'; stUwb.textContent = 'Ch9 (7987.2MHz) 50Hz 双向测距';
+    stRffe.className = 'pill-ok'; stRffe.textContent = '模式1/2: TX+21.5dBm / RX+15dB';
+    stImu.className = 'pill-ok'; stImu.textContent = '1000Hz SafeSPI 紧耦合更新中';
+    document.getElementById('val-speed').textContent = '72.0 km/h';
+    document.getElementById('val-err').textContent = '±4.8 cm';
+    document.getElementById('val-track').textContent = '上行正线 (Track 1)';
+    document.getElementById('val-rigid-status').textContent = '刚体约束校验通过 (无NLOS跳变)';
+  } else if (sc === 'station') {
+    topSt.textContent = '进站停稳 · ZUPT零速自校准';
+    stRffe.className = 'pill-warn'; stRffe.textContent = '模式3: 站台近场 <8m All-Bypass 防饱和';
+    stImu.className = 'pill-ok'; stImu.textContent = 'ZUPT/ZARU 零速修正清零陀螺零偏!';
+    document.getElementById('val-speed').textContent = '0.0 km/h (停稳)';
+    document.getElementById('val-err').textContent = '±1.9 cm';
+    document.getElementById('val-imu-bias').textContent = 'SCH1633 陀螺零偏已清零: 0.05 °/h';
+  } else if (sc === 'turnout') {
+    topSt.textContent = '道岔转辙区 · 左右基线股道识别';
+    document.getElementById('val-speed').textContent = '38.5 km/h (过岔)';
+    document.getElementById('val-track').textContent = '转入折返线 (Track 2)';
+    document.getElementById('val-err').textContent = '±5.2 cm';
+  } else if (sc === 'nlos') {
+    topSt.textContent = '会车强遮挡 · SCH1633惯导接管';
+    stUwb.className = 'pill-warn'; stUwb.textContent = '头车NLOS野值已由车长约束剔除';
+    stImu.className = 'pill-warn'; stImu.textContent = 'SCH1633 1kHz 航位推算无缝维持!';
+    document.getElementById('val-speed').textContent = '68.4 km/h';
+    document.getElementById('val-err').textContent = '±7.5 cm (纯惯导维持)';
+    document.getElementById('val-rigid-status').textContent = '检测到前向2.1m多径跳变，已刚体抑制!';
+  }
+}
+
+const anchors = [
+  { id: 'A_118', x: 90,  y: 42, side: 'top' },
+  { id: 'A_119', x: 310, y: 268, side: 'bot' },
+  { id: 'A_120', x: 530, y: 42, side: 'top' },
+  { id: 'A_121', x: 760, y: 268, side: 'bot' }
+];
+
+function drawLoop() {
+  tick++;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Tunnel walls
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 28); ctx.lineTo(900, 28);
+  ctx.moveTo(0, 282); ctx.lineTo(900, 282);
+  ctx.stroke();
+
+  // Main Track 1 rails
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, 130); ctx.lineTo(900, 130);
+  ctx.moveTo(0, 178); ctx.lineTo(900, 178);
+  ctx.stroke();
+
+  // Sleepers
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  for (let x = (-(tick * (scenario === 'station' ? 0 : 2)) % 24); x < 900; x += 24) {
+    ctx.beginPath();
+    ctx.moveTo(x, 124); ctx.lineTo(x, 184);
+    ctx.stroke();
+  }
+
+  // Turnout Track 2 branch if turnout mode
+  if (scenario === 'turnout') {
+    ctx.strokeStyle = '#f59e0b';
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(260, 130); ctx.quadraticCurveTo(480, 130, 720, 75);
+    ctx.moveTo(260, 178); ctx.quadraticCurveTo(480, 178, 720, 120);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Update motion
+  if (scenario !== 'station') {
+    trainX += (scenario === 'turnout' ? 0.9 : 1.6);
+    mileage += (scenario === 'turnout' ? 0.03 : 0.06);
+    if (trainX > 520) trainX = 110;
+    document.getElementById('val-mileage').textContent = mileage.toFixed(2) + ' m';
+  }
+
+  const trainW = 250;
+  const trainH = 40;
+  const trainY = (scenario === 'turnout' && trainX > 260)
+    ? 134 - (trainX - 260) * 0.14
+    : 134;
+
+  // Draw Train Body (6-car metro train)
+  ctx.fillStyle = '#0f172a';
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(trainX, trainY, trainW, trainH, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 12px Microsoft YaHei';
+  ctx.fillText('上海8号线 0842号列车 (车长刚体约束 L=140.0m)', trainX + 18, trainY + 24);
+
+  // 4 On-board UWB+IMU Nodes (N1, N2 at Tail; N3, N4 at Head)
+  const nodes = [
+    { id: 'N1(尾左)', x: trainX + 12, y: trainY + 5 },
+    { id: 'N2(尾右)', x: trainX + 12, y: trainY + trainH - 5 },
+    { id: 'N3(头左)', x: trainX + trainW - 12, y: trainY + 5 },
+    { id: 'N4(头右)', x: trainX + trainW - 12, y: trainY + trainH - 5 }
+  ];
+
+  // Draw NLOS obstacle in 'nlos' mode
+  if (scenario === 'nlos') {
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
+    ctx.strokeStyle = '#ef4444';
+    ctx.fillRect(trainX + trainW - 30, 58, 120, 52);
+    ctx.strokeRect(trainX + trainW - 30, 58, 120, 52);
+    ctx.fillStyle = '#fca5a5';
+    ctx.font = '11px Microsoft YaHei';
+    ctx.fillText('对向列车交会遮挡 (NLOS多径区)', trainX + trainW - 22, 88);
+  }
+
+  // Draw Ranging Rays between Wayside Anchors and Train 4 Nodes
+  anchors.forEach(a => {
+    // Draw Anchor Box
+    ctx.fillStyle = '#06b6d4';
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#67e8f9';
+    ctx.font = 'bold 11px Consolas';
+    ctx.fillText(`${a.id} (轨旁无IMU)`, a.x - 38, a.side === 'top' ? a.y - 12 : a.y + 20);
+
+    // Connect to closest train nodes
+    nodes.forEach((n, idx) => {
+      const distPx = Math.hypot(a.x - n.x, a.y - n.y);
+      if (distPx < 360) {
+        const isBlocked = (scenario === 'nlos' && idx >= 2 && a.side === 'top');
+        ctx.strokeStyle = isBlocked ? 'rgba(239,68,68,0.45)' : 'rgba(16, 185, 129, 0.45)';
+        ctx.lineWidth = isBlocked ? 1 : 1.5;
+        if (isBlocked) ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(n.x, n.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (idx === 2) {
+          const realDist = (distPx * 0.35).toFixed(2);
+          ctx.fillStyle = isBlocked ? '#f87171' : '#34d399';
+          ctx.font = '10px Consolas';
+          ctx.fillText(`${realDist}m`, (a.x + n.x) / 2 - 14, (a.y + n.y) / 2);
+        }
+      }
+    });
+  });
+
+  // Draw 4 Train Nodes
+  nodes.forEach(n => {
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  requestAnimationFrame(drawLoop);
+}
+drawLoop();
+</script>
+</body>
+</html>
