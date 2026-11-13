@@ -3,15 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>上海8号线 · UWB+IMU 3D列车精确定位 (手机精简版)</title>
-<!-- 国内三大静态CDN极速加载 Three.js WebGL 3D引擎 (360 CDN -> 阿里云 npmmirror -> 七牛 Staticfile) -->
-<script src="https://lib.baomitu.com/three.js/r128/three.min.js"
-        onerror="this.onerror=null;this.src='https://registry.npmmirror.com/three/0.128.0/files/build/three.min.js';"></script>
+<title>上海8号线 · UWB+IMU 3D列车精确定位 (手机直连版)</title>
 <style>
   :root {
-    --bg: #060a12;
-    --card: rgba(15, 23, 42, 0.88);
-    --border: rgba(51, 65, 85, 0.75);
+    --bg: #050912;
+    --card: #0f192b;
+    --border: rgba(56, 189, 248, 0.22);
     --blue: #0099d8;
     --cyan: #38bdf8;
     --green: #10b981;
@@ -23,47 +20,40 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
     width: 100%;
+    height: 100%;
     height: 100dvh;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     user-select: none;
   }
 
-  /* 顶部极简状态栏 */
+  /* 顶部状态栏 */
   .top-bar {
     height: 44px;
     padding: 0 12px;
-    background: linear-gradient(90deg, #091326 0%, #0f213c 100%);
-    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, #071122 0%, #0d213f 100%);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.25);
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
     z-index: 20;
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  .brand { display: flex; align-items: center; gap: 7px; }
   .line8-pill {
-    background: var(--blue);
+    background: linear-gradient(135deg, #00a6e8, #0077b6);
     color: #fff;
     font-size: 11px;
     font-weight: 800;
     padding: 2px 7px;
     border-radius: 5px;
-    letter-spacing: 0.3px;
+    box-shadow: 0 0 8px rgba(0, 153, 216, 0.45);
   }
-  .brand-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #e2e8f0;
-  }
+  .brand-title { font-size: 13.5px; font-weight: 700; color: #f1f5f9; }
   .live-badge {
     display: flex;
     align-items: center;
@@ -85,22 +75,23 @@
   }
   @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
 
-  /* 3D WebGL 视口区 (占屏幕上半部 54%) */
+  /* 3D 视口区 (占上半屏 55%) */
   .viewport-3d {
     position: relative;
     width: 100%;
-    height: 54dvh;
+    height: 55%;
     flex-shrink: 0;
-    background: #04070d;
+    background: #03060c;
     overflow: hidden;
   }
-  #webglContainer {
+  canvas#scene3D {
     width: 100%;
     height: 100%;
+    display: block;
     touch-action: none;
   }
 
-  /* 3D 浮层：左上视角切换 */
+  /* 3D 顶部视角切换浮层 */
   .hud-top {
     position: absolute;
     top: 8px;
@@ -115,12 +106,12 @@
   .cam-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 4px;
     pointer-events: auto;
-    background: rgba(6, 10, 18, 0.72);
+    background: rgba(5, 9, 18, 0.76);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    padding: 4px;
+    padding: 3px;
     border-radius: 8px;
     border: 1px solid rgba(148, 163, 184, 0.25);
   }
@@ -135,14 +126,13 @@
     cursor: pointer;
   }
   .cam-pill.active {
-    background: rgba(0, 153, 216, 0.35);
+    background: rgba(0, 153, 216, 0.38);
     color: #38bdf8;
     box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.55);
   }
   .gesture-hint {
-    background: rgba(6, 10, 18, 0.68);
-    backdrop-filter: blur(6px);
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(5, 9, 18, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.22);
     color: #94a3b8;
     font-size: 10px;
     padding: 4px 7px;
@@ -150,16 +140,16 @@
     white-space: nowrap;
   }
 
-  /* 3D 浮层：右上实时锚点测距 HUD */
+  /* 右上角实时斜距悬浮窗 */
   .ranging-hud {
     position: absolute;
-    top: 46px;
+    top: 44px;
     right: 8px;
-    background: rgba(6, 10, 18, 0.74);
-    backdrop-filter: blur(8px);
+    background: rgba(5, 9, 18, 0.76);
+    backdrop-filter: blur(6px);
     border: 1px solid rgba(56, 189, 248, 0.28);
     border-radius: 8px;
-    padding: 6px 8px;
+    padding: 5px 8px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 10px;
     color: #bae6fd;
@@ -168,7 +158,7 @@
     line-height: 1.45;
   }
 
-  /* 3D 浮层：底部工况一键切换栏 */
+  /* 3D 底部工况切换栏 */
   .hud-bottom {
     position: absolute;
     bottom: 8px;
@@ -180,12 +170,11 @@
     z-index: 10;
   }
   .sc-btn {
-    background: rgba(15, 23, 42, 0.84);
+    background: rgba(15, 23, 42, 0.86);
     backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(100, 116, 139, 0.4);
+    border: 1px solid rgba(100, 116, 139, 0.42);
     color: #cbd5e1;
-    padding: 7px 4px;
+    padding: 7px 3px;
     border-radius: 7px;
     font-size: 11px;
     font-weight: 600;
@@ -203,15 +192,15 @@
     color: #fcd34d;
   }
   .sc-btn.danger.active {
-    background: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.32);
     border-color: #ef4444;
     color: #fca5a5;
   }
 
-  /* 下半部分：手机抽屉面板 (46% 高度可滚动) */
+  /* 下半屏：手机数据抽屉 */
   .bottom-sheet {
     flex: 1;
-    background: #09101d;
+    background: #080f1d;
     border-top: 1px solid #1e293b;
     display: flex;
     flex-direction: column;
@@ -220,7 +209,7 @@
   .sheet-tabs {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    background: #0d1729;
+    background: #0c1628;
     border-bottom: 1px solid #1e293b;
     flex-shrink: 0;
   }
@@ -240,54 +229,43 @@
     border-bottom-color: var(--cyan);
     background: rgba(56, 189, 248, 0.08);
   }
-
   .sheet-body {
     flex: 1;
     overflow-y: auto;
-    padding: 10px 12px 18px;
+    padding: 9px 11px 16px;
     -webkit-overflow-scrolling: touch;
   }
-  .pane { display: none; flex-direction: column; gap: 10px; }
+  .pane { display: none; flex-direction: column; gap: 8px; }
   .pane.active { display: flex; }
 
-  /* 手机端4宫格遥测卡 */
   .kpi-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 7px;
   }
   .kpi-card {
-    background: #111c30;
+    background: #101b2e;
     border: 1px solid #1e293b;
-    border-radius: 9px;
-    padding: 9px 10px;
+    border-radius: 8px;
+    padding: 8px 10px;
   }
-  .kpi-title {
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 3px;
-  }
+  .kpi-title { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
   .kpi-num {
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 16px;
+    font-size: 15.5px;
     font-weight: 800;
     color: var(--cyan);
   }
-  .kpi-desc {
-    font-size: 10px;
-    color: #64748b;
-    margin-top: 2px;
-  }
+  .kpi-desc { font-size: 10px; color: #64748b; margin-top: 2px; }
 
-  /* 手机滑块盒 */
   .ctrl-box {
-    background: #111c30;
+    background: #101b2e;
     border: 1px solid #1e293b;
-    border-radius: 9px;
-    padding: 9px 11px;
+    border-radius: 8px;
+    padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
   }
   .ctrl-row {
     display: flex;
@@ -295,23 +273,14 @@
     font-size: 11px;
     font-weight: 600;
   }
-  input[type=range] {
-    width: 100%;
-    height: 5px;
-    accent-color: var(--cyan);
-  }
+  input[type=range] { width: 100%; height: 5px; accent-color: var(--cyan); }
 
-  /* BOM 列表精简卡 */
-  .bom-switch {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-  }
+  .bom-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .bom-btn {
     padding: 7px;
     border-radius: 7px;
     border: 1px solid #334155;
-    background: #111c30;
+    background: #101b2e;
     color: #cbd5e1;
     font-size: 11px;
     font-weight: 700;
@@ -321,40 +290,23 @@
     border-color: var(--cyan);
     color: #fff;
   }
-  .chip-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+  .chip-list { display: flex; flex-direction: column; gap: 6px; }
   .chip-item {
-    background: #111c30;
+    background: #101b2e;
     border: 1px solid #1e293b;
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 7px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
-  .chip-item.dnp {
-    opacity: 0.42;
-    border-style: dashed;
-    border-color: var(--amber);
-  }
-  .chip-left .mpn {
-    font-family: Consolas, monospace;
-    font-size: 12px;
-    font-weight: 700;
-    color: #f8fafc;
-  }
-  .chip-left .role {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 2px;
-  }
+  .chip-item.dnp { opacity: 0.42; border-style: dashed; border-color: var(--amber); }
+  .chip-left .mpn { font-family: Consolas, monospace; font-size: 12px; font-weight: 700; color: #f8fafc; }
+  .chip-left .role { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
   .chip-right {
     text-align: right;
     font-family: Consolas, monospace;
-    font-size: 12px;
+    font-size: 11.5px;
     color: #fbbf24;
     font-weight: 700;
     flex-shrink: 0;
@@ -364,11 +316,10 @@
 </head>
 <body>
 
-<!-- 顶部状态栏 -->
 <div class="top-bar">
   <div class="brand">
     <span class="line8-pill">上海8号线</span>
-    <span class="brand-title">UWB+IMU 3D精确定位系统</span>
+    <span class="brand-title">UWB+IMU 3D列车定位系统</span>
   </div>
   <div class="live-badge">
     <span class="dot"></span>
@@ -376,30 +327,27 @@
   </div>
 </div>
 
-<!-- 3D WebGL 逼真隧道与列车视口 -->
-<div class="viewport-3d">
-  <div id="webglContainer"></div>
+<!-- 100% 零外部依赖 · 原生光影3D盾构隧道与8号线列车视口 -->
+<div class="viewport-3d" id="vp3d">
+  <canvas id="scene3D"></canvas>
 
-  <!-- 顶部视角切换 -->
   <div class="hud-top">
     <div class="cam-group">
-      <button class="cam-pill active" onclick="setCameraMode('chase', this)">🎥 3D追尾斜视</button>
-      <button class="cam-pill" onclick="setCameraMode('cab', this)">🚄 司机室视角</button>
-      <button class="cam-pill" onclick="setCameraMode('side', this)">🛸 隧道侧跟拍</button>
-      <button class="cam-pill" onclick="setCameraMode('orbit', this)">🔄 360°环绕</button>
+      <button class="cam-pill active" onclick="setCam('chase', this)">🎥 3D追尾斜视</button>
+      <button class="cam-pill" onclick="setCam('cab', this)">🚄 司机室视角</button>
+      <button class="cam-pill" onclick="setCam('top', this)">🚁 鸟瞰透视</button>
+      <button class="cam-pill" onclick="setCam('orbit', this)">🔄 360°环绕</button>
     </div>
     <div class="gesture-hint">👆单指旋转 · 双指缩放</div>
   </div>
 
-  <!-- 右上角实时斜距悬浮窗 -->
-  <div class="ranging-hud" id="hud-ranges">
-    <div><strong>[Ch9 · 7987.2MHz 实时测距]</strong></div>
-    <div id="rng-line1">N3(头左)↔A_120: 42.6m (LOS)</div>
-    <div id="rng-line2">N4(头右)↔A_119: 51.3m (LOS)</div>
-    <div id="rng-line3">N1(尾左)↔A_118: 38.9m (LOS)</div>
+  <div class="ranging-hud">
+    <div><strong>[Ch9 · 7987.2MHz 空口测距]</strong></div>
+    <div id="rng-1">N3(头左)↔A_120: 42.6m (LOS)</div>
+    <div id="rng-2">N4(头右)↔A_119: 51.3m (LOS)</div>
+    <div id="rng-3">N1(尾左)↔A_118: 38.9m (LOS)</div>
   </div>
 
-  <!-- 底部4种工况一键切换 -->
   <div class="hud-bottom">
     <button class="sc-btn active" onclick="setScenario('cruise', this)">🟢 巡航72km/h</button>
     <button class="sc-btn" onclick="setScenario('station', this)">🟡 进站停稳</button>
@@ -408,7 +356,6 @@
   </div>
 </div>
 
-<!-- 下半部：手机精简数据抽屉 -->
 <div class="bottom-sheet">
   <div class="sheet-tabs">
     <button class="sheet-tab active" onclick="switchPane('telemetry', this)">📊 实时定位遥测</button>
@@ -417,7 +364,6 @@
   </div>
 
   <div class="sheet-body">
-    <!-- Pane 1: 实时遥测 -->
     <div id="pane-telemetry" class="pane active">
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -437,7 +383,7 @@
         </div>
         <div class="kpi-card">
           <div class="kpi-title">双天线股道识别</div>
-          <div class="kpi-num" id="m-track" style="font-size:14px;">上行正线 Track 1</div>
+          <div class="kpi-num" id="m-track" style="font-size:13.5px;">上行正线 Track 1</div>
           <div class="kpi-desc" id="m-imu">SCH1633零偏: 0.42 °/h</div>
         </div>
       </div>
@@ -459,7 +405,6 @@
       </div>
     </div>
 
-    <!-- Pane 2: 实拍BOM与同板异贴 -->
     <div id="pane-bom" class="pane">
       <div class="bom-switch">
         <button class="bom-btn active" id="b-onboard" onclick="toggleBomMode('onboard')">🚄 车端满配版 (400套 · ¥320/套)</button>
@@ -504,7 +449,6 @@
       </div>
     </div>
 
-    <!-- Pane 3: SHL6 抗干扰测试 -->
     <div id="pane-shl6" class="pane">
       <div class="chip-list">
         <div class="chip-item">
@@ -541,9 +485,9 @@
 </div>
 
 <script>
-/* =================== 手机端 UI 交互逻辑 =================== */
+/* =================== UI 面板逻辑 =================== */
 let scenario = 'cruise';
-let cameraMode = 'chase';
+let camMode = 'chase';
 let jamPower = -110;
 
 function switchPane(id, btn) {
@@ -617,574 +561,585 @@ function setScenario(sc, btn) {
   }
 }
 
-function setCameraMode(mode, btn) {
-  cameraMode = mode;
+/* =================== 100% 零外部依赖 · 逼真光影 3D 盾构隧道与上海8号线列车引擎 =================== */
+const canvas = document.getElementById('scene3D');
+const ctx = canvas.getContext('2d');
+let W = 400, H = 320, DPR = 1;
+
+function resizeCanvas() {
+  const vp = document.getElementById('vp3d');
+  W = vp.clientWidth || 390;
+  H = vp.clientHeight || 320;
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// 3D 相机轨道参数 (单位：米级比例尺)
+let camYaw = -0.56;
+let camPitch = 0.33;
+let camDist = 340;
+let camEye = { x: 0, y: 90, z: 200 };
+let camF = { x: 0, y: 0, z: -1 };
+let camR = { x: 1, y: 0, z: 0 };
+let camU = { x: 0, y: 1, z: 0 };
+
+function setCam(mode, btn) {
+  camMode = mode;
   document.querySelectorAll('.cam-pill').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   if (mode === 'chase') {
-    orbitYaw = -0.58; orbitPitch = 0.32; orbitDist = 26;
-  } else if (mode === 'side') {
-    orbitYaw = -1.15; orbitPitch = 0.22; orbitDist = 24;
+    camYaw = -0.56; camPitch = 0.33; camDist = 340;
+  } else if (mode === 'top') {
+    camYaw = -0.06; camPitch = 1.18; camDist = 420;
   } else if (mode === 'orbit') {
-    orbitPitch = 0.30; orbitDist = 28;
+    camPitch = 0.30; camDist = 350;
   }
 }
 
-/* =================== THREE.JS 逼真 3D 盾构隧道与上海8号线列车引擎 =================== */
-let orbitYaw = -0.58;
-let orbitPitch = 0.32;
-let orbitDist = 26;
-
-window.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('webglContainer');
-  if (typeof THREE === 'undefined') {
-    container.innerHTML = '<div style="padding:30px;color:#38bdf8;text-align:center;">正在初始化 3D 引擎，请刷新页面...</div>';
-    return;
+// 手机单指拖拽旋转 & 双指捏合缩放
+let dragging = false, lx = 0, ly = 0, pinch0 = 0;
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    dragging = true;
+    lx = e.touches[0].clientX;
+    ly = e.touches[0].clientY;
+    if (camMode === 'cab' || camMode === 'orbit') camMode = 'chase';
+  } else if (e.touches.length === 2) {
+    dragging = false;
+    pinch0 = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
   }
+}, { passive: true });
 
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x040811);
-  scene.fog = new THREE.FogExp2(0x040811, 0.011);
-
-  const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.2, 220);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
-  container.appendChild(renderer.domElement);
-
-  // 环境光与隧道顶部动态照明
-  const ambientLight = new THREE.AmbientLight(0x3b5278, 1.35);
-  scene.add(ambientLight);
-
-  const dirLight = new THREE.DirectionalLight(0xa5f3fc, 1.1);
-  dirLight.position.set(18, 28, 22);
-  scene.add(dirLight);
-
-  const warmTunnelLight = new THREE.PointLight(0x38bdf8, 2.2, 48);
-  warmTunnelLight.position.set(0, 8.5, 4);
-  scene.add(warmTunnelLight);
-
-  // 1. 生成逼真盾构混凝土管片纹理 (Procedural Concrete Shield Tunnel Texture)
-  function createTunnelTexture() {
-    const c = document.createElement('canvas');
-    c.width = 512; c.height = 512;
-    const g = c.getContext('2d');
-    g.fillStyle = '#141e30';
-    g.fillRect(0, 0, 512, 512);
-    // 管片环接缝与螺栓孔
-    g.strokeStyle = '#090e17';
-    g.lineWidth = 4;
-    for (let y = 0; y < 512; y += 64) {
-      g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke();
-    }
-    for (let x = 0; x < 512; x += 128) {
-      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 512); g.stroke();
-    }
-    // 隧道壁蓝色弱电光缆灯带
-    g.fillStyle = 'rgba(56, 189, 248, 0.35)';
-    g.fillRect(90, 0, 6, 512);
-    g.fillRect(416, 0, 6, 512);
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(3, 18);
-    return tex;
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 1 && dragging) {
+    const dx = e.touches[0].clientX - lx;
+    const dy = e.touches[0].clientY - ly;
+    lx = e.touches[0].clientX;
+    ly = e.touches[0].clientY;
+    camYaw += dx * 0.008;
+    camPitch = Math.max(0.08, Math.min(1.38, camPitch + dy * 0.007));
+  } else if (e.touches.length === 2) {
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    camDist = Math.max(170, Math.min(620, camDist - (d - pinch0) * 0.85));
+    pinch0 = d;
   }
+}, { passive: true });
+canvas.addEventListener('touchend', () => { dragging = false; }, { passive: true });
 
-  // 双洞/大直径盾构隧道内壁 (沿 Z 轴延伸)
-  const tunnelTex = createTunnelTexture();
-  const tunnelGeo = new THREE.CylinderGeometry(11.5, 11.5, 180, 36, 1, true, -Math.PI * 0.68, Math.PI * 1.36);
-  tunnelGeo.rotateX(Math.PI / 2);
-  const tunnelMat = new THREE.MeshStandardMaterial({
-    map: tunnelTex,
-    roughness: 0.78,
-    metalness: 0.22,
-    side: THREE.BackSide
+// PC 鼠标兼容
+canvas.addEventListener('mousedown', e => {
+  dragging = true; lx = e.clientX; ly = e.clientY;
+  if (camMode === 'cab' || camMode === 'orbit') camMode = 'chase';
+});
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  camYaw += (e.clientX - lx) * 0.007;
+  camPitch = Math.max(0.08, Math.min(1.38, camPitch + (e.clientY - ly) * 0.006));
+  lx = e.clientX; ly = e.clientY;
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camDist = Math.max(170, Math.min(620, camDist + e.deltaY * 0.28));
+}, { passive: false });
+
+// 3D 坐标与相机矩阵计算 (X: 线路纵向, Y: 垂直高度, Z: 隧道横向)
+function updateCameraBasis(focusX, headX, getZFn) {
+  if (camMode === 'orbit') camYaw += 0.007;
+  let target;
+  if (camMode === 'cab') {
+    const hz = getZFn(headX);
+    camEye = { x: headX - 6, y: 36, z: hz };
+    target = { x: headX + 200, y: 20, z: getZFn(headX + 160) };
+  } else {
+    target = { x: focusX, y: 20, z: -18 };
+    camEye = {
+      x: target.x + camDist * Math.cos(camPitch) * Math.sin(camYaw),
+      y: target.y + camDist * Math.sin(camPitch),
+      z: target.z + camDist * Math.cos(camPitch) * Math.cos(camYaw)
+    };
+  }
+  const fx = target.x - camEye.x, fy = target.y - camEye.y, fz = target.z - camEye.z;
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  camF = { x: fx / fl, y: fy / fl, z: fz / fl };
+  const rx = -camF.z, ry = 0, rz = camF.x;
+  const rl = Math.hypot(rx, ry, rz) || 1;
+  camR = { x: rx / rl, y: ry / rl, z: rz / rl };
+  camU = {
+    x: camR.y * camF.z - camR.z * camF.y,
+    y: camR.z * camF.x - camR.x * camF.z,
+    z: camR.x * camF.y - camR.y * camF.x
+  };
+}
+
+function toCam(wx, wy, wz) {
+  const dx = wx - camEye.x, dy = wy - camEye.y, dz = wz - camEye.z;
+  return {
+    x: dx * camR.x + dy * camR.y + dz * camR.z,
+    y: dx * camU.x + dy * camU.y + dz * camU.z,
+    z: dx * camF.x + dy * camF.y + dz * camF.z
+  };
+}
+
+function projCam(cp) {
+  const fov = Math.min(W, H) * 1.35;
+  const s = fov / cp.z;
+  return { sx: W * 0.5 + cp.x * s, sy: H * 0.54 - cp.y * s, depth: cp.z, scale: s };
+}
+
+function projWorld(wx, wy, wz) {
+  const cp = toCam(wx, wy, wz);
+  if (cp.z <= 12) return null;
+  return projCam(cp);
+}
+
+function drawSeg3D(p1, p2, color, width = 1.4, dash = null) {
+  let c1 = toCam(p1.x, p1.y, p1.z);
+  let c2 = toCam(p2.x, p2.y, p2.z);
+  const NEAR = 12;
+  if (c1.z < NEAR && c2.z < NEAR) return;
+  if (c1.z < NEAR) {
+    const t = (NEAR - c1.z) / (c2.z - c1.z);
+    c1 = { x: c1.x + (c2.x - c1.x) * t, y: c1.y + (c2.y - c1.y) * t, z: NEAR };
+  } else if (c2.z < NEAR) {
+    const t = (NEAR - c2.z) / (c1.z - c2.z);
+    c2 = { x: c2.x + (c1.x - c2.x) * t, y: c2.y + (c1.y - c2.y) * t, z: NEAR };
+  }
+  const s1 = projCam(c1), s2 = projCam(c2);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(s1.sx, s1.sy);
+  ctx.lineTo(s2.sx, s2.sy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function fillQuad3D(ptsWorld, fillStyle, strokeStyle = null, lineWidth = 1) {
+  const p2d = [];
+  for (let i = 0; i < ptsWorld.length; i++) {
+    const pr = projWorld(ptsWorld[i].x, ptsWorld[i].y, ptsWorld[i].z);
+    if (!pr) return null;
+    p2d.push(pr);
+  }
+  ctx.beginPath();
+  ctx.moveTo(p2d[0].sx, p2d[0].sy);
+  for (let i = 1; i < p2d.length; i++) ctx.lineTo(p2d[i].sx, p2d[i].sy);
+  ctx.closePath();
+  if (fillStyle) { ctx.fillStyle = fillStyle; ctx.fill(); }
+  if (strokeStyle) { ctx.strokeStyle = strokeStyle; ctx.lineWidth = lineWidth; ctx.stroke(); }
+  return p2d;
+}
+
+// 构建带流线型车头、车窗、吉祥蓝腰带的上海8号线 3D 车厢面片
+function buildCarriageFaces(faces, cx, cy, cz, lx, ly, lz, yaw, isHeadCar, isOpposing) {
+  const cosA = Math.cos(yaw), sinA = Math.sin(yaw);
+  const hx = lx / 2, hy = ly / 2, hz = lz / 2;
+  // 头车鼻锥向 +X 方向前伸并收窄
+  const noseLen = isHeadCar ? 14 : 0;
+  const toW = (x, y, z) => ({
+    x: cx + x * cosA - z * sinA,
+    y: cy + y,
+    z: cz + x * sinA + z * cosA
   });
-  const tunnelMesh = new THREE.Mesh(tunnelGeo, tunnelMat);
-  tunnelMesh.position.set(0, 3.2, 0);
-  scene.add(tunnelMesh);
 
-  // 盾构加强肋环 (每隔 8m 一道立体钢拱肋)
-  const ribGroup = new THREE.Group();
-  const ribGeo = new THREE.TorusGeometry(11.35, 0.14, 8, 40, Math.PI * 1.32);
-  ribGeo.rotateZ(-Math.PI * 0.16);
-  const ribMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.35 });
-  for (let z = -80; z <= 80; z += 8) {
-    const rib = new THREE.Mesh(ribGeo, ribMat);
-    rib.position.set(0, 3.2, z);
-    ribGroup.add(rib);
-  }
-  scene.add(ribGroup);
+  const c = [
+    toW(-hx, -hy, -hz), toW(hx, -hy, -hz), toW(hx, hy, -hz), toW(-hx, hy, -hz),
+    toW(-hx, -hy,  hz), toW(hx, -hy,  hz), toW(hx, hy,  hz), toW(-hx, hy,  hz)
+  ];
+  const proj = c.map(p => projWorld(p.x, p.y, p.z));
+  if (proj.some(p => p === null)) return;
 
-  // 2. 隧道底部混凝土整体道床与双线高光钢轨
-  const floorGeo = new THREE.PlaneGeometry(24, 180);
-  floorGeo.rotateX(-Math.PI / 2);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b1220, roughness: 0.9, metalness: 0.1 });
-  const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-  floorMesh.position.y = -1.55;
-  scene.add(floorMesh);
+  const palette = isOpposing ? {
+    sideL: 'rgba(185, 28, 28, 0.68)',
+    sideR: 'rgba(153, 27, 27, 0.72)',
+    top:   'rgba(220, 38, 38, 0.62)',
+    front: 'rgba(248, 113, 113, 0.78)',
+    back:  'rgba(127, 29, 29, 0.65)',
+    stroke: '#ef4444'
+  } : {
+    sideL: '#e2e8f0',
+    sideR: '#cbd5e1',
+    top:   '#f8fafc',
+    front: '#0f172a',
+    back:  '#334155',
+    stroke: '#38bdf8'
+  };
 
-  const railMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.92, roughness: 0.18 });
-  const railGeo = new THREE.BoxGeometry(0.14, 0.18, 180);
-  // Track 1 (上行正线 X = +2.8) & Track 2 (下行/折返线 X = -2.8)
-  [-3.55, -2.05, 2.05, 3.55].forEach(rx => {
-    const r = new THREE.Mesh(railGeo, railMat);
-    r.position.set(rx, -1.42, 0);
-    scene.add(r);
-  });
-
-  // 轨枕群 (随列车运动循环滚动)
-  const sleeperGroup = new THREE.Group();
-  const sleeperGeo = new THREE.BoxGeometry(2.4, 0.1, 0.32);
-  const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
-  for (let z = -85; z <= 85; z += 1.6) {
-    const s1 = new THREE.Mesh(sleeperGeo, sleeperMat);
-    s1.position.set(2.8, -1.5, z);
-    sleeperGroup.add(s1);
-    const s2 = new THREE.Mesh(sleeperGeo, sleeperMat);
-    s2.position.set(-2.8, -1.5, z);
-    sleeperGroup.add(s2);
-  }
-  scene.add(sleeperGroup);
-
-  // 架空刚性接触网 (DC 1500V Overhead Catenary)
-  const catGeo = new THREE.CylinderGeometry(0.03, 0.03, 180, 8);
-  catGeo.rotateX(Math.PI / 2);
-  const catMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-  const catWire = new THREE.Mesh(catGeo, catMat);
-  catWire.position.set(2.8, 3.35, 0);
-  scene.add(catWire);
-
-  // 3. 创建上海地铁 8 号线车厢侧面高精纹理 (吉祥蓝 #0099D8 + 发光车窗 + 塞拉门)
-  function createCarSideTexture() {
-    const c = document.createElement('canvas');
-    c.width = 1024; c.height = 256;
-    const g = c.getContext('2d');
-    // 铝合金亮白车体底色
-    const grad = g.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#e2e8f0');
-    grad.addColorStop(0.55, '#f8fafc');
-    grad.addColorStop(1, '#cbd5e1');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 1024, 256);
-
-    // 上海8号线标志性双腰带 (吉祥蓝 #0099d8)
-    g.fillStyle = '#0099d8';
-    g.fillRect(0, 32, 1024, 18);
-    g.fillRect(0, 152, 1024, 28);
-    g.fillStyle = '#0284c7';
-    g.fillRect(0, 180, 1024, 8);
-
-    // 4对双开塞拉门与车窗
-    for (let i = 0; i < 4; i++) {
-      const bx = 70 + i * 235;
-      // 车门框
-      g.fillStyle = '#94a3b8';
-      g.fillRect(bx, 48, 72, 188);
-      g.fillStyle = '#bae6fd';
-      g.fillRect(bx + 6, 62, 26, 75);
-      g.fillRect(bx + 40, 62, 26, 75);
-      // 宽景客室亮灯车窗
-      const wx = bx + 92;
-      g.fillStyle = '#0f172a';
-      g.fillRect(wx - 4, 58, 118, 82);
-      const winGrad = g.createLinearGradient(wx, 62, wx, 136);
-      winGrad.addColorStop(0, '#e0f2fe');
-      winGrad.addColorStop(1, '#7dd3fc');
-      g.fillStyle = winGrad;
-      g.fillRect(wx, 62, 110, 74);
-    }
-    return new THREE.CanvasTexture(c);
+  // 底盘阴影与转向架裙板
+  const bogieCorners = [
+    toW(-hx * 0.88, -hy - 4, -hz * 0.82),
+    toW( hx * 0.88, -hy - 4, -hz * 0.82),
+    toW( hx * 0.88, -hy,     -hz * 0.82),
+    toW(-hx * 0.88, -hy,     -hz * 0.82)
+  ];
+  const bp = bogieCorners.map(p => projWorld(p.x, p.y, p.z));
+  if (bp.every(Boolean)) {
+    faces.push({
+      pts2d: bp,
+      avgDepth: bp.reduce((s, p) => s + p.depth, 0) / 4 + 4,
+      fill: '#090d16',
+      stroke: '#1e293b',
+      tag: 'bogie',
+      worldCorners: bogieCorners
+    });
   }
 
-  // 创建8号线车头前脸纹理 (流线型黑风挡 + 0842 目的地牌 + LED前大灯)
-  function createCabFrontTexture() {
-    const c = document.createElement('canvas');
-    c.width = 512; c.height = 512;
-    const g = c.getContext('2d');
-    g.fillStyle = '#f1f5f9';
-    g.fillRect(0, 0, 512, 512);
-    // 蓝色流线装饰带
-    g.fillStyle = '#0099d8';
-    g.fillRect(0, 310, 512, 75);
-    // 驾驶室深色弧形前挡风玻璃
-    g.fillStyle = '#090d16';
-    g.fillRect(46, 55, 420, 220);
-    // 顶部 LED 终点站屏
-    g.fillStyle = '#1e293b';
-    g.fillRect(110, 72, 292, 42);
-    g.fillStyle = '#f59e0b';
-    g.font = 'bold 26px "Microsoft YaHei", sans-serif';
-    g.fillText('0842  8号线 沈杜公路', 132, 102);
-    // 底部防爬器
-    g.fillStyle = '#1e293b';
-    g.fillRect(30, 415, 452, 75);
-    return new THREE.CanvasTexture(c);
-  }
-
-  const sideTex = createCarSideTexture();
-  const cabTex = createCabFrontTexture();
-
-  // 组装 3 节编组立体地铁列车 (Head / Mid / Tail)
-  const trainGroup = new THREE.Group();
-  const carLength = 9.2;
-  const carWidth = 2.65;
-  const carHeight = 2.85;
-  const carMeshes = [];
-
-  const bodyMats = [
-    new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.25, metalness: 0.35 }), // Right
-    new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.25, metalness: 0.35 }), // Left
-    new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4, metalness: 0.5 }), // Roof
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 }), // Bottom
-    new THREE.MeshStandardMaterial({ map: cabTex, roughness: 0.2, metalness: 0.3 }), // Front (+Z)
-    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 })  // Back (-Z)
+  const rawFaces = [
+    { idx: [0, 1, 2, 3], fill: palette.sideL, tag: isOpposing ? 'opp' : 'sideL' },
+    { idx: [4, 5, 6, 7], fill: palette.sideR, tag: isOpposing ? 'opp' : 'sideR' },
+    { idx: [3, 2, 6, 7], fill: palette.top,   tag: isOpposing ? 'opp' : 'top' },
+    { idx: [1, 5, 6, 2], fill: palette.front, tag: isOpposing ? 'opp' : (isHeadCar ? 'cabFront' : 'front') },
+    { idx: [0, 4, 7, 3], fill: palette.back,  tag: 'back' }
   ];
 
-  for (let i = 0; i < 3; i++) {
-    const car = new THREE.Group();
-    const zOffset = (1 - i) * (carLength + 0.55); // i=0: Head (+Z), i=1: Mid (0), i=2: Tail (-Z)
-    car.position.set(2.8, 0.15, zOffset);
-
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(carWidth, carHeight, carLength), bodyMats);
-    car.add(mesh);
-
-    // 车顶空调包 (HVAC)
-    const hvac = new THREE.Mesh(
-      new THREE.BoxGeometry(1.7, 0.28, 3.2),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.4 })
-    );
-    hvac.position.set(0, carHeight / 2 + 0.14, 0);
-    car.add(hvac);
-
-    // 底部转向架 (Bogies)
-    [-2.8, 2.8].forEach(bz => {
-      const bogie = new THREE.Mesh(
-        new THREE.BoxGeometry(2.3, 0.55, 1.8),
-        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.5 })
-      );
-      bogie.position.set(0, -carHeight / 2 - 0.15, bz);
-      car.add(bogie);
+  rawFaces.forEach(f => {
+    const pts2d = f.idx.map(i => proj[i]);
+    const avgDepth = f.idx.reduce((s, i) => s + proj[i].depth, 0) / 4;
+    faces.push({
+      pts2d,
+      avgDepth,
+      fill: f.fill,
+      stroke: palette.stroke,
+      tag: f.tag,
+      worldCorners: f.idx.map(i => c[i])
     });
+  });
 
-    // 头车专属：流线型楔形鼻锥 + 双体积光大灯
-    if (i === 0) {
-      const noseGeo = new THREE.CylinderGeometry(carWidth * 0.46, carWidth * 0.5, 1.35, 24);
-      noseGeo.rotateX(Math.PI / 2);
-      const noseMat = new THREE.MeshStandardMaterial({ color: 0x0099d8, roughness: 0.2, metalness: 0.45 });
-      const nose = new THREE.Mesh(noseGeo, noseMat);
-      nose.position.set(0, -0.35, carLength / 2 + 0.4);
-      car.add(nose);
+  // 若为头车，增加流线型楔形鼻锥与车头大灯
+  if (isHeadCar && !isOpposing) {
+    const nBotL = toW(hx + noseLen, -hy + 2, -hz * 0.78);
+    const nBotR = toW(hx + noseLen, -hy + 2,  hz * 0.78);
+    const nMidL = toW(hx + noseLen * 0.65, 2, -hz * 0.84);
+    const nMidR = toW(hx + noseLen * 0.65, 2,  hz * 0.84);
 
-      // 左右 LED 前大灯发光体与光束锥
-      [-0.85, 0.85].forEach(lx => {
-        const bulb = new THREE.Mesh(
-          new THREE.SphereGeometry(0.18, 12, 12),
-          new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    // 挡风玻璃斜面 (从鼻锥中部斜向上至车顶前缘)
+    const windPts = [nMidL, nMidR, c[6], c[2]].map(p => projWorld(p.x, p.y, p.z));
+    if (windPts.every(Boolean)) {
+      faces.push({
+        pts2d: windPts,
+        avgDepth: windPts.reduce((s, p) => s + p.depth, 0) / 4 - 2,
+        fill: '#091526',
+        stroke: '#0099d8',
+        tag: 'windshield',
+        worldCorners: [nMidL, nMidR, c[6], c[2]]
+      });
+    }
+    // 蓝色流线型下鼻锥面
+    const nosePts = [nBotL, nBotR, nMidR, nMidL].map(p => projWorld(p.x, p.y, p.z));
+    if (nosePts.every(Boolean)) {
+      faces.push({
+        pts2d: nosePts,
+        avgDepth: nosePts.reduce((s, p) => s + p.depth, 0) / 4 - 3,
+        fill: '#0099d8',
+        stroke: '#38bdf8',
+        tag: 'noseFront',
+        worldCorners: [nBotL, nBotR, nMidR, nMidL]
+      });
+    }
+  }
+}
+
+let scrollOffset = 0;
+let turnoutProgress = 0;
+let oppX = 220;
+let mileage = 14285.4;
+let tick = 0;
+
+function getTrackZ(x) {
+  if (scenario !== 'turnout') return 0;
+  const rel = x + turnoutProgress;
+  const s = Math.sin(rel * 0.012);
+  return -38 + s * 38;
+}
+
+const anchorsWorld = [
+  { id: 'A_118', x: -210, y: 58, z: -128, side: 'left' },
+  { id: 'A_119', x:  -65, y: 58, z:   78, side: 'right' },
+  { id: 'A_120', x:   85, y: 58, z: -128, side: 'left' },
+  { id: 'A_121', x:  230, y: 58, z:   78, side: 'right' }
+];
+
+function render3D() {
+  tick++;
+  // 1. 深邃隧道环境底色与中心体积雾光晕
+  const bg = ctx.createRadialGradient(W * 0.55, H * 0.42, 15, W * 0.5, H * 0.5, Math.max(W, H) * 0.85);
+  bg.addColorStop(0, '#0f2442');
+  bg.addColorStop(0.48, '#081224');
+  bg.addColorStop(1, '#03060c');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 推进列车与隧道相对运动
+  const speed = (scenario === 'station') ? 0 : (scenario === 'turnout' ? 2.2 : 4.2);
+  if (speed > 0) {
+    scrollOffset = (scrollOffset + speed) % 48;
+    mileage += speed * 0.015;
+    document.getElementById('m-mileage').textContent = mileage.toFixed(1) + ' m';
+    anchorsWorld.forEach(a => {
+      a.x -= speed;
+      if (a.x < -280) a.x += 580;
+    });
+  }
+  if (scenario === 'turnout') turnoutProgress += 1.8;
+  if (scenario === 'nlos') {
+    oppX -= 6.5;
+    if (oppX < -280) oppX = 280;
+  }
+
+  // 3节编组车厢中心位置 (列车保持在视野黄金中心，隧道与基站向后飞驰)
+  const carLen = 68, carGap = 6;
+  const headX = 76;
+  const midX  = headX - (carLen + carGap);
+  const tailX = midX  - (carLen + carGap);
+
+  updateCameraBasis(midX + 10, headX + carLen * 0.5, getTrackZ);
+
+  // 2. 绘制 3D 混凝土盾构管片环 + 隧道壁光带 + 拱顶照明灯
+  const tunZCenter = -24, tunRZ = 126, tunRY = 118;
+  for (let x = -340 - scrollOffset; x <= 380; x += 48) {
+    let prev = null;
+    for (let step = 0; step <= 14; step++) {
+      const ang = (-0.10 + (step / 14) * 1.20) * Math.PI;
+      const cur = {
+        x,
+        y: Math.sin(ang) * tunRY,
+        z: tunZCenter + Math.cos(ang) * tunRZ
+      };
+      if (prev) {
+        drawSeg3D(prev, cur, 'rgba(56, 189, 248, 0.22)', 1.6);
+      }
+      prev = cur;
+    }
+    // 隧道顶部 LED 照明灯具光点
+    const lampPt = projWorld(x, tunRY * 0.94, tunZCenter);
+    if (lampPt && lampPt.depth < 520) {
+      const lr = Math.max(1.8, 420 / lampPt.depth);
+      ctx.fillStyle = 'rgba(186, 230, 253, 0.75)';
+      ctx.beginPath();
+      ctx.arc(lampPt.sx, lampPt.sy, lr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 隧道纵向管片接缝线与蓝色弱电光缆桥架
+  [-0.92, -0.5, 0, 0.5, 0.92].forEach((cv, idx) => {
+    const ang = Math.acos(cv);
+    const wy = Math.sin(ang) * tunRY;
+    const wz = tunZCenter + cv * tunRZ;
+    const col = (idx === 0 || idx === 4) ? 'rgba(14, 165, 233, 0.38)' : 'rgba(30, 58, 95, 0.35)';
+    drawSeg3D({ x: -360, y: wy, z: wz }, { x: 400, y: wy, z: wz }, col, idx === 0 || idx === 4 ? 1.8 : 1);
+  });
+
+  // 顶部金色 DC1500V 架空刚性接触网
+  drawSeg3D({ x: -360, y: 66, z: 0 }, { x: 400, y: 66, z: 0 }, 'rgba(245, 158, 11, 0.55)', 1.5);
+
+  // 3. 整体道床、轨枕与高光金属双轨 (Track 1 正线 & Track 2 折返线)
+  for (let x = -340 - (scrollOffset % 24); x <= 380; x += 24) {
+    drawSeg3D({ x, y: 0, z: -20 }, { x, y: 0, z: 20 }, 'rgba(71, 85, 105, 0.8)', 2.2);
+    drawSeg3D({ x, y: 0, z: -96 }, { x, y: 0, z: -56 }, 'rgba(51, 65, 85, 0.55)', 1.5);
+  }
+  // 高光钢轨
+  drawSeg3D({ x: -360, y: 1, z: -13 }, { x: 400, y: 1, z: -13 }, '#94a3b8', 2.4);
+  drawSeg3D({ x: -360, y: 1, z:  13 }, { x: 400, y: 1, z:  13 }, '#94a3b8', 2.4);
+  drawSeg3D({ x: -360, y: 1, z: -89 }, { x: 400, y: 1, z: -89 }, '#475569', 1.7);
+  drawSeg3D({ x: -360, y: 1, z: -63 }, { x: 400, y: 1, z: -63 }, '#475569', 1.7);
+
+  // 4. 组装上海8号线 3节编组立体车体面片 (含透光车窗、吉祥蓝涂装、流线型车头)
+  const faces = [];
+  const cars = [
+    { cx: headX, isHead: true },
+    { cx: midX,  isHead: false },
+    { cx: tailX, isHead: false }
+  ];
+
+  cars.forEach(c => {
+    const cz = getTrackZ(c.cx);
+    const cz2 = getTrackZ(c.cx + 10);
+    const yaw = Math.atan2(cz2 - cz, 10);
+    c.cz = cz;
+    c.yaw = yaw;
+    buildCarriageFaces(faces, c.cx, 18, cz, carLen, 28, 32, yaw, c.isHead, false);
+  });
+
+  if (scenario === 'nlos') {
+    buildCarriageFaces(faces, oppX, 18, -76, 145, 29, 32, 0, false, true);
+  }
+
+  // 画家算法远近排序
+  faces.sort((a, b) => b.avgDepth - a.avgDepth);
+
+  faces.forEach(f => {
+    ctx.beginPath();
+    ctx.moveTo(f.pts2d[0].sx, f.pts2d[0].sy);
+    for (let i = 1; i < f.pts2d.length; i++) ctx.lineTo(f.pts2d[i].sx, f.pts2d[i].sy);
+    ctx.closePath();
+    ctx.fillStyle = f.fill;
+    ctx.fill();
+    ctx.strokeStyle = f.stroke;
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
+    // 在车厢左右侧面绘制上海8号线 #0099D8 吉祥蓝双腰带 + 暖白亮灯车窗
+    if (f.tag === 'sideL' || f.tag === 'sideR') {
+      const [c0, c1, c2, c3] = f.worldCorners;
+      // 吉祥蓝腰带
+      fillQuad3D([
+        { x: c0.x, y: c0.y + 6,  z: c0.z },
+        { x: c1.x, y: c1.y + 6,  z: c1.z },
+        { x: c1.x, y: c1.y + 11, z: c1.z },
+        { x: c0.x, y: c0.y + 11, z: c0.z }
+      ], '#0099d8');
+
+      // 4 扇透光亮灯客室车窗
+      for (let w = 0.10; w < 0.84; w += 0.22) {
+        const w1 = w, w2 = w + 0.14;
+        fillQuad3D([
+          { x: c0.x + (c1.x - c0.x) * w1, y: c0.y + 13, z: c0.z + (c1.z - c0.z) * w1 },
+          { x: c0.x + (c1.x - c0.x) * w2, y: c0.y + 13, z: c0.z + (c1.z - c0.z) * w2 },
+          { x: c0.x + (c1.x - c0.x) * w2, y: c0.y + 22, z: c0.z + (c1.z - c0.z) * w2 },
+          { x: c0.x + (c1.x - c0.x) * w1, y: c0.y + 22, z: c0.z + (c1.z - c0.z) * w1 }
+        ], '#bae6fd', '#0284c7', 0.8);
+      }
+    }
+  });
+
+  // 5. 车头体积光双前大灯锥 + 中间车顶单臂受电弓与电弧闪光
+  const noseTipX = headX + carLen * 0.5 + 14;
+  const noseZ = getTrackZ(noseTipX);
+  fillQuad3D([
+    { x: noseTipX, y: 10, z: noseZ - 10 },
+    { x: noseTipX + 115, y: 1, z: noseZ - 34 },
+    { x: noseTipX + 115, y: 1, z: noseZ + 34 },
+    { x: noseTipX, y: 10, z: noseZ + 10 }
+  ], 'rgba(254, 240, 138, 0.18)');
+
+  // 受电弓与蓝白受流电弧
+  const mCar = cars[1];
+  drawSeg3D({ x: mCar.cx - 8, y: 32, z: mCar.cz }, { x: mCar.cx, y: 50, z: mCar.cz }, '#cbd5e1', 2);
+  drawSeg3D({ x: mCar.cx, y: 50, z: mCar.cz }, { x: mCar.cx - 5, y: 66, z: mCar.cz }, '#f8fafc', 2);
+  drawSeg3D({ x: mCar.cx - 5, y: 66, z: mCar.cz - 10 }, { x: mCar.cx - 5, y: 66, z: mCar.cz + 10 }, '#f59e0b', 2.5);
+  const arcPt = projWorld(mCar.cx - 5, 66, mCar.cz);
+  if (arcPt && (tick % 4 < 2)) {
+    ctx.fillStyle = '#67e8f9';
+    ctx.beginPath();
+    ctx.arc(arcPt.sx, arcPt.sy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 6. 车顶四角 4 个 UWB+IMU 节点 (N1~N4) 与 140m 刚体约束骨架
+  const tCar = cars[2], hCar = cars[0];
+  const tx = tCar.cx - carLen * 0.42, tz = getTrackZ(tx);
+  const hx = hCar.cx + carLen * 0.42, hz = getTrackZ(hx);
+  const nodes = [
+    { id: 'N1(尾左)', x: tx, y: 34, z: tz - 15 },
+    { id: 'N2(尾右)', x: tx, y: 34, z: tz + 15 },
+    { id: 'N3(头左)', x: hx, y: 34, z: hz - 15 },
+    { id: 'N4(头右)', x: hx, y: 34, z: hz + 15 }
+  ];
+
+  drawSeg3D(nodes[0], nodes[2], 'rgba(245, 158, 11, 0.65)', 1.5, [5, 4]);
+  drawSeg3D(nodes[1], nodes[3], 'rgba(245, 158, 11, 0.65)', 1.5, [5, 4]);
+  drawSeg3D(nodes[0], nodes[1], 'rgba(245, 158, 11, 0.8)', 1.8);
+  drawSeg3D(nodes[2], nodes[3], 'rgba(245, 158, 11, 0.8)', 1.8);
+
+  // 7. 轨旁锚点箱 (A_118~A_121) 与 3D 激光测距波束 + 飞行光子脉冲
+  anchorsWorld.forEach((a, aIdx) => {
+    const pa = projWorld(a.x, a.y, a.z);
+    if (pa) {
+      const r = Math.max(4, Math.min(8.5, 2200 / pa.depth));
+      ctx.fillStyle = '#06b6d4';
+      ctx.beginPath();
+      ctx.arc(pa.sx, pa.sy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#cffafe';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+
+      ctx.fillStyle = '#67e8f9';
+      ctx.font = 'bold 10px Consolas, monospace';
+      ctx.fillText(a.id, pa.sx - 16, pa.sy - r - 5);
+    }
+
+    nodes.forEach((n, nIdx) => {
+      const dist = Math.hypot(a.x - n.x, a.y - n.y, a.z - n.z);
+      if (dist < 320) {
+        const blocked = (
+          scenario === 'nlos' &&
+          a.side === 'left' &&
+          Math.abs(n.x - oppX) < 105
+        ) || (jamPower > -45);
+
+        drawSeg3D(
+          a, n,
+          blocked ? 'rgba(239, 68, 68, 0.58)' : 'rgba(16, 185, 129, 0.56)',
+          blocked ? 1.2 : 1.7,
+          blocked ? [4, 4] : null
         );
-        bulb.position.set(lx, -0.32, carLength / 2 + 0.92);
-        car.add(bulb);
 
-        const coneGeo = new THREE.ConeGeometry(1.8, 14, 20, 1, true);
-        coneGeo.rotateX(-Math.PI / 2);
-        const coneMat = new THREE.MeshBasicMaterial({
-          color: 0xfef08a,
-          transparent: true,
-          opacity: 0.13,
-          side: THREE.DoubleSide,
-          depthWrite: false
-        });
-        const cone = new THREE.Mesh(coneGeo, coneMat);
-        cone.position.set(lx, -0.5, carLength / 2 + 7.8);
-        car.add(cone);
-      });
-    }
-
-    // 中间车专属：车顶单臂受电弓 + 蓝白电弧光点
-    if (i === 1) {
-      const pantoMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.2 });
-      const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.3), pantoMat);
-      arm1.position.set(0, carHeight / 2 + 0.5, -0.4);
-      arm1.rotation.x = 0.6;
-      car.add(arm1);
-      const bow = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.12), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
-      bow.position.set(0, carHeight / 2 + 1.45, 0);
-      car.add(bow);
-    }
-
-    trainGroup.add(car);
-    carMeshes.push(car);
-  }
-  scene.add(trainGroup);
-
-  // 4. 车顶四角 4 个 UWB+IMU 节点 (N1 尾左, N2 尾右, N3 头左, N4 头右) + 刚体约束框
-  const nodeConfigs = [
-    { id: 'N1(尾左)', carIdx: 2, lx: -1.18, ly: carHeight / 2 + 0.25, lz: -carLength * 0.42 },
-    { id: 'N2(尾右)', carIdx: 2, lx:  1.18, ly: carHeight / 2 + 0.25, lz: -carLength * 0.42 },
-    { id: 'N3(头左)', carIdx: 0, lx: -1.18, ly: carHeight / 2 + 0.25, lz:  carLength * 0.42 },
-    { id: 'N4(头右)', carIdx: 0, lx:  1.18, ly: carHeight / 2 + 0.25, lz:  carLength * 0.42 }
-  ];
-
-  const nodeSpheres = [];
-  const pulseRings = [];
-  nodeConfigs.forEach(nc => {
-    const beacon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.28, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xf59e0b })
-    );
-    beacon.position.set(nc.lx, nc.ly, nc.lz);
-    carMeshes[nc.carIdx].add(beacon);
-    nodeSpheres.push(beacon);
-
-    // 电磁脉冲扩散球壳
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.32, 0.48, 24),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.75 })
-    );
-    ring.rotation.x = Math.PI / 2;
-    beacon.add(ring);
-    pulseRings.push(ring);
-  });
-
-  // 5. 对向交会列车 (仅在会车遮挡 NLOS 模式下于相邻股道 X = -2.8 驶过)
-  const oppTrain = new THREE.Mesh(
-    new THREE.BoxGeometry(2.65, 2.9, 22),
-    new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0x7f1d1d,
-      roughness: 0.3,
-      metalness: 0.4,
-      transparent: true,
-      opacity: 0.72
-    })
-  );
-  oppTrain.position.set(-2.8, 0.2, 35);
-  oppTrain.visible = false;
-  scene.add(oppTrain);
-
-  // 6. 隧道两侧墙壁轨旁锚点箱 (A_118 ~ A_121) 与 3D 激光测距波束
-  const anchorDefs = [
-    { id: 'A_118', pos: new THREE.Vector3(-8.2, 3.6, -18), side: 'left' },
-    { id: 'A_119', pos: new THREE.Vector3( 8.2, 3.6,  -4), side: 'right' },
-    { id: 'A_120', pos: new THREE.Vector3(-8.2, 3.6,  12), side: 'left' },
-    { id: 'A_121', pos: new THREE.Vector3( 8.2, 3.6,  28), side: 'right' }
-  ];
-
-  const anchorMeshes = [];
-  anchorDefs.forEach(ad => {
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.65, 0.85, 0.45),
-      new THREE.MeshStandardMaterial({ color: 0x06b6d4, emissive: 0x0891b2, roughness: 0.2, metalness: 0.6 })
-    );
-    box.position.copy(ad.pos);
-    scene.add(box);
-    anchorMeshes.push({ def: ad, mesh: box });
-  });
-
-  // 创建 8 条动态 3D 测距射线 + 飞行脉冲光子球
-  const beamLines = [];
-  const photonSpheres = [];
-  const pairs = [
-    [0, 0], [0, 2], [1, 1], [1, 3],
-    [2, 0], [2, 2], [3, 1], [3, 3]
-  ]; // [anchorIdx, nodeIdx]
-
-  pairs.forEach(() => {
-    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-    const mat = new THREE.LineBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.85 });
-    const line = new THREE.Line(geo, mat);
-    scene.add(line);
-    beamLines.push(line);
-
-    const photon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0x34d399 })
-    );
-    scene.add(photon);
-    photonSpheres.push(photon);
-  });
-
-  // 7. 触屏单指旋转 + 双指捏合缩放 + 鼠标兼容
-  let isDown = false;
-  let prevX = 0, prevY = 0;
-  let pinchDist = 0;
-
-  container.addEventListener('pointerdown', e => {
-    isDown = true;
-    prevX = e.clientX;
-    prevY = e.clientY;
-  });
-  window.addEventListener('pointermove', e => {
-    if (!isDown) return;
-    const dx = e.clientX - prevX;
-    const dy = e.clientY - prevY;
-    prevX = e.clientX;
-    prevY = e.clientY;
-    orbitYaw -= dx * 0.007;
-    orbitPitch = Math.max(0.08, Math.min(1.35, orbitPitch + dy * 0.006));
-  });
-  window.addEventListener('pointerup', () => { isDown = false; });
-
-  container.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
-      pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-    }
-  }, { passive: true });
-
-  container.addEventListener('touchmove', e => {
-    if (e.touches.length === 2) {
-      const d = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      orbitDist = Math.max(12, Math.min(48, orbitDist - (d - pinchDist) * 0.06));
-      pinchDist = d;
-    }
-  }, { passive: true });
-
-  container.addEventListener('wheel', e => {
-    e.preventDefault();
-    orbitDist = Math.max(12, Math.min(48, orbitDist + e.deltaY * 0.025));
-  }, { passive: false });
-
-  window.addEventListener('resize', () => {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-  });
-
-  // 8. 60fps 实时动画主循环
-  let mileage = 14285.4;
-  let tick = 0;
-  let turnoutPhase = 0;
-
-  function animate() {
-    requestAnimationFrame(animate);
-    tick += 0.035;
-
-    const speedFactor = (scenario === 'station') ? 0 : (scenario === 'turnout' ? 0.22 : 0.45);
-    if (speedFactor > 0) {
-      mileage += speedFactor * 0.12;
-      document.getElementById('m-mileage').textContent = mileage.toFixed(1) + ' m';
-      tunnelTex.offset.y -= speedFactor * 0.012;
-
-      // 循环移动盾构肋环、轨枕与轨旁基站，营造高速穿行感
-      ribGroup.children.forEach(r => {
-        r.position.z -= speedFactor;
-        if (r.position.z < -80) r.position.z += 160;
-      });
-      sleeperGroup.children.forEach(s => {
-        s.position.z -= speedFactor;
-        if (s.position.z < -85) s.position.z += 170;
-      });
-      anchorMeshes.forEach(am => {
-        am.mesh.position.z -= speedFactor;
-        if (am.mesh.position.z < -32) am.mesh.position.z += 68;
-      });
-    }
-
-    // 道岔变轨模式下：3节车厢沿 S 曲线平滑横向蛇行变轨
-    if (scenario === 'turnout') {
-      turnoutPhase += 0.025;
-      carMeshes.forEach((car, idx) => {
-        const phase = turnoutPhase - idx * 0.55;
-        const targetX = 0.0 + Math.sin(phase) * 2.8;
-        car.position.x += (targetX - car.position.x) * 0.08;
-        car.rotation.y = Math.cos(phase) * 0.11;
-      });
-    } else {
-      carMeshes.forEach(car => {
-        car.position.x += (2.8 - car.position.x) * 0.1;
-        car.rotation.y *= 0.88;
-      });
-    }
-
-    // 会车遮挡模式 (NLOS)
-    if (scenario === 'nlos') {
-      oppTrain.visible = true;
-      oppTrain.position.z -= 0.65;
-      if (oppTrain.position.z < -30) oppTrain.position.z = 36;
-    } else {
-      oppTrain.visible = false;
-    }
-
-    // 更新车顶脉冲扩散环与 8 条 3D 测距波束
-    pulseRings.forEach((r, i) => {
-      const s = 1 + ((tick * 1.8 + i * 0.4) % 2.4);
-      r.scale.set(s, s, 1);
-      r.material.opacity = Math.max(0, 0.85 - (s - 1) * 0.35);
-    });
-
-    const nodeWorldPos = nodeSpheres.map(ns => {
-      const v = new THREE.Vector3();
-      ns.getWorldPosition(v);
-      return v;
-    });
-
-    pairs.forEach(([aIdx, nIdx], idx) => {
-      const aPos = anchorMeshes[aIdx].mesh.position;
-      const nPos = nodeWorldPos[nIdx];
-      const line = beamLines[idx];
-      const posArr = line.geometry.attributes.position.array;
-      posArr[0] = aPos.x; posArr[1] = aPos.y; posArr[2] = aPos.z;
-      posArr[3] = nPos.x; posArr[4] = nPos.y; posArr[5] = nPos.z;
-      line.geometry.attributes.position.needsUpdate = true;
-
-      // 判断是否被对向列车或强干扰阻挡
-      const blocked = (
-        scenario === 'nlos' &&
-        anchorMeshes[aIdx].def.side === 'left' &&
-        Math.abs(oppTrain.position.z - nPos.z) < 13
-      ) || (jamPower > -45);
-
-      line.material.color.setHex(blocked ? 0xef4444 : 0x10b981);
-      line.material.opacity = blocked ? 0.42 : 0.85;
-
-      // 飞行光子球
-      const photon = photonSpheres[idx];
-      photon.visible = !blocked;
-      if (!blocked) {
-        const t = (tick * 1.4 + idx * 0.21) % 1;
-        photon.position.lerpVectors(aPos, nPos, t);
+        if (!blocked) {
+          const ph = (tick * 0.045 + nIdx * 0.25 + aIdx * 0.15) % 1;
+          const pp = projWorld(
+            a.x + (n.x - a.x) * ph,
+            a.y + (n.y - a.y) * ph,
+            a.z + (n.z - a.z) * ph
+          );
+          if (pp) {
+            ctx.fillStyle = '#34d399';
+            ctx.beginPath();
+            ctx.arc(pp.sx, pp.sy, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
       }
     });
+  });
 
-    // 更新右上角 HUD 实时斜距读数
-    const d1 = anchorMeshes[2].mesh.position.distanceTo(nodeWorldPos[2]).toFixed(1);
-    const d2 = anchorMeshes[1].mesh.position.distanceTo(nodeWorldPos[3]).toFixed(1);
-    const d3 = anchorMeshes[0].mesh.position.distanceTo(nodeWorldPos[0]).toFixed(1);
-    document.getElementById('rng-line1').textContent = `N3(头左)↔A_120: ${d1}m (${scenario === 'nlos' ? 'NLOS剔除' : 'LOS'})`;
-    document.getElementById('rng-line2').textContent = `N4(头右)↔A_119: ${d2}m (LOS)`;
-    document.getElementById('rng-line3').textContent = `N1(尾左)↔A_118: ${d3}m (LOS)`;
+  // 更新右上角实时斜距读数
+  const d1 = (Math.hypot(anchorsWorld[2].x - nodes[2].x, anchorsWorld[2].z - nodes[2].z) * 0.32).toFixed(1);
+  const d2 = (Math.hypot(anchorsWorld[1].x - nodes[3].x, anchorsWorld[1].z - nodes[3].z) * 0.32).toFixed(1);
+  const d3 = (Math.hypot(anchorsWorld[0].x - nodes[0].x, anchorsWorld[0].z - nodes[0].z) * 0.32).toFixed(1);
+  document.getElementById('rng-1').textContent = `N3(头左)↔A_120: ${d1}m (${scenario === 'nlos' ? 'NLOS剔除' : 'LOS'})`;
+  document.getElementById('rng-2').textContent = `N4(头右)↔A_119: ${d2}m (LOS)`;
+  document.getElementById('rng-3').textContent = `N1(尾左)↔A_118: ${d3}m (LOS)`;
 
-    // 更新 3D 摄像机机位
-    const headCarPos = carMeshes[0].position;
-    if (cameraMode === 'cab') {
-      camera.position.set(headCarPos.x, headCarPos.y + 1.05, headCarPos.z + carLength / 2 + 0.5);
-      camera.lookAt(headCarPos.x, headCarPos.y + 0.4, headCarPos.z + 32);
-    } else {
-      if (cameraMode === 'orbit') orbitYaw += 0.008;
-      const targetX = carMeshes[1].position.x * 0.6;
-      const targetY = 0.6;
-      const targetZ = 2.0;
-      camera.position.set(
-        targetX + orbitDist * Math.cos(orbitPitch) * Math.sin(orbitYaw),
-        targetY + orbitDist * Math.sin(orbitPitch),
-        targetZ - orbitDist * Math.cos(orbitPitch) * Math.cos(orbitYaw)
-      );
-      camera.lookAt(targetX, targetY, targetZ + 3);
-    }
+  // 8. 车顶 4 个发光信标与脉冲波环
+  nodes.forEach(n => {
+    const pn = projWorld(n.x, n.y, n.z);
+    if (!pn) return;
+    const r = Math.max(3.5, Math.min(7, 1900 / pn.depth));
+    const pr = r + ((tick * 0.32) % 9);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(pn.sx, pn.sy, pr, 0, Math.PI * 2);
+    ctx.stroke();
 
-    renderer.render(scene, camera);
-  }
-  animate();
-});
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(pn.sx, pn.sy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fde68a';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillText(n.id, pn.sx - 18, pn.sy - r - 4);
+  });
+
+  requestAnimationFrame(render3D);
+}
+render3D();
 </script>
 </body>
 </html>
